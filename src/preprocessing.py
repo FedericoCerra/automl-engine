@@ -5,17 +5,24 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.utils.validation import check_is_fitted
+from sklearn.preprocessing import PolynomialFeatures
 
-class AutoPreProcessor(BaseEstimator , TransformerMixin):
-    def __init__(self, num_strategy='median', cat_strategy='constant', use_scaler=True):
+class AutoPreProcessor(BaseEstimator, TransformerMixin):
+    def __init__(self, num_strategy='median', cat_strategy='constant', use_scaler=True, use_poly=False, poly_degree=2):        
         """
         Args:
-            num_stra
+            num_strategy = the strategy to impute missing numerical values.
+            cat_strategy = the strategy to impute missing categorical values.
+            use_scaler = if True, scales data(default True)
+            use_poly = if True, creates polynomial features for numerical data only.
+            poly_degree = the degree of the polynomial features.
         """
-        # 1. (Optimizable by Optuna)
+        # (Optimizable by Optuna)
         self.num_strategy = num_strategy
         self.cat_strategy = cat_strategy
         self.use_scaler = use_scaler
+        self.use_poly = use_poly
+        self.poly_degree = poly_degree
         
         # State Attributes
         self.preprocessor_ = None 
@@ -26,9 +33,15 @@ class AutoPreProcessor(BaseEstimator , TransformerMixin):
         self.num_cols = X.select_dtypes(include=['number']).columns.tolist()
         self.cat_cols = X.select_dtypes(exclude=['number']).columns.tolist()
         
-        num_pipeline_steps = [('imputer',SimpleImputer(strategy=self.num_strategy))]
+        num_pipeline_steps = [('imputer', SimpleImputer(strategy=self.num_strategy))]
+        
+        # INJECT POLY HERE: After imputing, before scaling!
+        if self.use_poly:
+            num_pipeline_steps.append(('poly', PolynomialFeatures(degree=self.poly_degree, include_bias=False)))
+            
         if self.use_scaler:
-            num_pipeline_steps.append(('scaler',StandardScaler()))
+            num_pipeline_steps.append(('scaler', StandardScaler()))
+            
         num_pipeline = Pipeline(num_pipeline_steps)
         
         cat_pipeline = Pipeline([

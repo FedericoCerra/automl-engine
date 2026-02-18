@@ -13,3 +13,6 @@ build/
 venv/
 env/
 ENV/
+
+# Machine Learning Artifacts ---
+models/

@@ -7,17 +7,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
 
 class AutoFeatureEngine(BaseEstimator, TransformerMixin):
-    def __init__(self, use_poly=True, degree=2, use_log=True, use_pca=False, pca_components=0.95):
+    def __init__(self, use_log=True, use_pca=False, pca_components=0.95):
         """
         Args:
-            use_poly (bool): If True, generate x^2, x^3, and interactions (x1*x2).
-            degree (int): The power of the polynomial (2 is usually enough).
             use_log (bool): If True, applies log(1+x) to help with skewed data.
             use_pca (bool): If True, compresses data to remove noise/redundancy.
             pca_components (float): If < 1.0, keep variance (e.g., 95%). If > 1, keep N features.
         """
-        self.use_poly = use_poly
-        self.degree = degree
         self.use_log = use_log
         self.use_pca = use_pca
         self.pca_components = pca_components
@@ -32,9 +28,6 @@ class AutoFeatureEngine(BaseEstimator, TransformerMixin):
                 steps.append(('log', FunctionTransformer(np.log1p, validate=True)))
             else:
                 print("Skipping Log Transform: Data contains negative values.")
-    
-        if self.use_poly:
-            steps.append(('poly', PolynomialFeatures(degree=self.degree, include_bias=False)))
 
         if self.use_pca:
             steps.append(('pca', PCA(n_components=self.pca_components)))
