@@ -1,0 +1,15 @@
+# --- Python Specific ---
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# --- Virtual Environment ---
+.venv/
+venv/
+env/
+ENV/
