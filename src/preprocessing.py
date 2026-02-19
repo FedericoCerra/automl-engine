@@ -35,7 +35,6 @@ class AutoPreProcessor(BaseEstimator, TransformerMixin):
         
         num_pipeline_steps = [('imputer', SimpleImputer(strategy=self.num_strategy))]
         
-        # INJECT POLY HERE: After imputing, before scaling!
         if self.use_poly:
             num_pipeline_steps.append(('poly', PolynomialFeatures(degree=self.poly_degree, include_bias=False)))
             

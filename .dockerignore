@@ -1,0 +1,20 @@
+# Python Virtual Environments
+.venv/
+venv/
+env/
+
+# Cache folders
+__pycache__/
+*.pyc
+
+# Git history
+.git/
+.gitignore
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Local models and data (we want the container to start fresh)
+*.pkl
+api_models/
+api_uploads/

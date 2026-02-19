@@ -1,6 +1,9 @@
-scikit-learn
-pandas
-numpy
 fastapi
-uvicorn 
+uvicorn
 python-multipart
+pydantic
+pandas
+scikit-learn
+xgboost
+optuna
+joblib

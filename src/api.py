@@ -5,35 +5,42 @@ import joblib
 from typing import List
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+import sys
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 from src.model_selector import AutoModelSelector
 
 app = FastAPI(title="AutoML Master API", description="Drag, Drop, and Train ML Models")
 
 os.makedirs("api_uploads", exist_ok=True)
 os.makedirs("api_models", exist_ok=True)
-job_database = {}
 
-# ==========================================
-# 🛡️ PYDANTIC SCHEMAS (The Contract)
-# ==========================================
+job_database = {}
+results_database = {}
+
+# PYDANTIC SCHEMAS 
 class TrainingTicketResponse(BaseModel):
     message: str
     job_id: str
+      
+
 
 class JobStatusResponse(BaseModel):
     job_id: str
     status: str
+    score: float | None = Field(default=None, example=0.85)
+    metric: str | None = Field(default=None, example="accuracy")  
 
 class PredictionResponse(BaseModel):
     job_id: str
     total_predictions: int
     predictions: List[str | int | float] # Can handle text classes or numerical regression
 
-# ==========================================
-# ⚙️ BACKGROUND WORKER
-# ==========================================
+# BACKGROUND WORKER
 def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str):
     try:
         job_database[job_id] = "Loading data..."
@@ -45,7 +52,8 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
 
         X = df.drop(columns=[target])
         y = df[target]
-
+        
+        job_database[job_id] = "Training..."        
         automl = AutoModelSelector(n_trials=trials, task=task, scoring='auto')
         automl.fit(X, y)
         
@@ -53,16 +61,18 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         joblib.dump(automl, model_path)
         
         os.remove(file_path)
+        
+        results_database[job_id] = {
+            "score": abs(automl.best_score), # abs() removes the negative sign from MSE
+            "metric": automl.scoring
+        }
+        
         job_database[job_id] = "COMPLETED"
     
     except Exception as e:
         job_database[job_id] = f"FAILED: {str(e)}"
 
-# ==========================================
-# 🚀 ENDPOINTS
-# ==========================================
-
-# Notice response_model=TrainingTicketResponse
+# ENDPOINTS
 @app.post("/train", response_model=TrainingTicketResponse)
 async def start_training(
     background_tasks: BackgroundTasks,
@@ -87,7 +97,16 @@ async def start_training(
 @app.get("/status/{job_id}", response_model=JobStatusResponse)
 def check_status(job_id: str):
     status = job_database.get(job_id, "Job ID not found.")
-    return JobStatusResponse(job_id=job_id, status=status)
+    
+    # Check if there are final results for this job
+    results = results_database.get(job_id, {})
+    
+    return JobStatusResponse(
+        job_id=job_id, 
+        status=status,
+        score=results.get("score"),
+        metric=results.get("metric")
+    )
 
 @app.get("/download/{job_id}")
 def download_model(job_id: str):
