@@ -6,12 +6,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+import pandas as pd
 
 from src.preprocessing import AutoPreProcessor
 from src.feature_eng import AutoFeatureEngine
 
 class AutoModelSelector:
-    def __init__(self, n_trials=50, task='regression', scoring='auto'):
+    def __init__(self, n_trials=50, task='auto', scoring='auto'):
         self.n_trials = n_trials
         self.task = task
         self.scoring = scoring
@@ -119,7 +120,21 @@ class AutoModelSelector:
         return objective
 
     def fit(self, X, y):
-        # ENCODE TARGETS FOR CLASSIFICATION
+
+        # AUTO-SELECT TASK
+        if self.task == 'auto':
+            y_series = pd.Series(y)
+            is_text = y_series.dtype == 'object' or y_series.dtype.name == 'category'
+            unique_values = y_series.nunique()
+
+            if is_text or unique_values < 20:
+                self.task = 'classification'
+            else:
+                self.task = 'regression'
+                
+            print(f"Auto-configured for {self.task.upper()}")
+
+        # ENCODE TARGETS FOR CLASSIFICATION 
         if self.task == 'classification':
             self.label_encoder = LabelEncoder()
             y = self.label_encoder.fit_transform(y)
@@ -149,28 +164,36 @@ class AutoModelSelector:
     def _build_best_pipeline(self, X, y):
         p = self.study.best_params
         
+        use_scaler = p.get('use_scaler', True)
+        model_type = p['model_type']
+        use_pca = p.get('use_pca', False)
+        
+        ## This may be a superfluous check
+        if (use_pca or model_type == 'svm') and not use_scaler:
+            actual_use_scaler = True
+        else:
+            actual_use_scaler = use_scaler
+        
         preprocessor = AutoPreProcessor(
             num_strategy=p.get('num_strategy', 'median'),
-            use_scaler=p.get('use_scaler', True),
+            use_scaler=actual_use_scaler,           
             use_poly=p.get('use_poly', False),     
             poly_degree=p.get('poly_degree', 2)    
         ) 
         
         feature_eng = AutoFeatureEngine(
-            use_log=p['use_log'], 
-            use_pca=p['use_pca'],
+            use_log=p.get('use_log', False),        
+            use_pca=use_pca,
             pca_components=p.get('pca_components', 0.95)
         )
 
-        model_type = p['model_type']
-        
         if self.task == 'regression':
             if model_type == "rf":
                 model = RandomForestRegressor(n_estimators=p['rf_n_estimators'], max_depth=p['rf_max_depth'], random_state=42)
             elif model_type == "xgb":
                 model = xgb.XGBRegressor(n_estimators=p['xgb_n_estimators'], max_depth=p['xgb_max_depth'], learning_rate=p['xgb_lr'], objective="reg:squarederror", random_state=42)
             elif model_type == "svm":
-                model = SVR(C=p['svm_C'], kernel="rbf")
+                model = SVR(C=p['svm_C'], kernel="rbf", max_iter=2000)
                 
         elif self.task == 'classification':
             if model_type == "rf":
@@ -180,7 +203,7 @@ class AutoModelSelector:
                 xgb_obj = "binary:logistic" if num_classes == 2 else "multi:softprob"
                 model = xgb.XGBClassifier(n_estimators=p['xgb_n_estimators'], max_depth=p['xgb_max_depth'], learning_rate=p['xgb_lr'], objective=xgb_obj, random_state=42)
             elif model_type == "svm":
-                model = SVC(C=p['svm_C'], kernel="rbf", probability=True)
+                model = SVC(C=p['svm_C'], kernel="rbf", probability=True, max_iter=2000) 
 
         self.best_pipeline = Pipeline([
             ('preprocessor', preprocessor),

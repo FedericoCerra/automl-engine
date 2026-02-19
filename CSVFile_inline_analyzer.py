@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.model_selector import AutoModelSelector
 """ 
 USE EXAMPLE:
-python CSVFile_inline_analyzer.py --data datasets/titanic/train.csv --target Survived --trials 100 --output titanic_model.pkl
+python CSVFile_inline_analyzer.py --data datasets/titanic/train.csv --target Survived --trials 100 --output models/titanic_model.pkl
 """
 def main():
     parser = argparse.ArgumentParser(description="Ultimate AutoML Pipeline")
@@ -17,6 +17,13 @@ def main():
     parser.add_argument("--target", type=str, required=True, help="Name of the column you want to predict")
     parser.add_argument("--trials", type=int, default=30, help="Number of Optuna trials (default: 30)")
     parser.add_argument("--output", type=str, default="final_model.pkl", help="Name of the saved model file")
+    parser.add_argument(
+        "--task", 
+        type=str, 
+        choices=['auto', 'regression', 'classification'], 
+        default='auto', 
+        help="Force the task type, or let the engine auto-detect"
+    )
     
     args = parser.parse_args()
 
@@ -39,27 +46,12 @@ def main():
     print(f"Data loaded successfully! Shape: {df.shape}")
     print(f"Target Column: '{args.target}'")
 
-    #  (Auto-Task Detection)
-    print("\nAnalyzing target column to determine ML task...")
-    
-    unique_values = y.nunique()
-    is_text = y.dtype == 'object' or y.dtype.name == 'category'
-
-    # Logic: If it's text, or if it's numbers but only has a few unique options (like 0 and 1)
-    if is_text or unique_values < 20:
-        task = 'classification'
-        print(f" Detected Task: CLASSIFICATION ({unique_values} unique classes found)")
-    else:
-        task = 'regression'
-        print(f" Detected Task: REGRESSION (Continuous numerical data found)")
-
     print("\n" + "="*50)
     print(f" FIRING UP AUTOML ENGINE ({args.trials} Trials)")
     print("="*50)
     
     # We leave scoring='auto' so the Engine picks the best metric itself!
-    automl = AutoModelSelector(n_trials=args.trials, task=task, scoring='auto')
-    
+    automl = AutoModelSelector(n_trials=args.trials, task=args.task, scoring='auto')    
     try:
         automl.fit(X, y)
     except Exception as e:
