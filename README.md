@@ -1,3 +1,13 @@
+---
+title: AutoML API Engine
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # 🚀 AutoML Master Engine & API
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
