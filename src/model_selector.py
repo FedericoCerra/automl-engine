@@ -153,7 +153,8 @@ class AutoModelSelector:
         
         self.study = optuna.create_study(direction=direction)
         self.study.optimize(self._create_objective(X, y), n_trials=self.n_trials)
-
+        self.best_score = self.study.best_value 
+        
         print("\n" + "="*30)
         print("BEST TRIAL FOUND:")
         print(self.study.best_params)
