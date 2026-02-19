@@ -6,7 +6,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
-A **production-ready AutoML engine** powered by an asynchronous FastAPI backend.  
+An **AutoML engine** powered by an asynchronous FastAPI backend.  
 Automatically detects ML task types, performs intelligent hyperparameter tuning with Optuna, and is fully containerized for deployment on **Hugging Face Spaces, AWS, or any Docker environment**.
 
 ---
@@ -42,7 +42,7 @@ Accessible via the `/status/{job_id}` endpoint.
 
 ---
 
-## 🖥 Dual Execution Modes
+## Dual Execution Modes
 
 ###  Web API Mode
 For production deployment and remote access.
