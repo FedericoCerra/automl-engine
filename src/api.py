@@ -4,7 +4,7 @@ import pandas as pd
 import joblib
 from typing import List
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 import sys
 
@@ -16,6 +16,9 @@ from src.model_selector import AutoModelSelector
 
 app = FastAPI(title="AutoML Master API", description="Drag, Drop, and Train ML Models")
 
+@app.get("/", include_in_schema=False)
+def redirect_to_docs():
+    return RedirectResponse(url="/docs")
 os.makedirs("api_uploads", exist_ok=True)
 os.makedirs("api_models", exist_ok=True)
 
