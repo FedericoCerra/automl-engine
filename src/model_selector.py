@@ -119,7 +119,7 @@ class AutoModelSelector:
 
         return objective
 
-    def fit(self, X, y):
+    def fit(self, X, y, progress_callback=None):
 
         # AUTO-SELECT TASK
         if self.task == 'auto':
@@ -151,8 +151,17 @@ class AutoModelSelector:
         maximize_metrics = ['accuracy', 'f1', 'f1_macro', 'roc_auc', 'r2', 'precision', 'recall']
         direction = "maximize" if "neg" in self.scoring or self.scoring in maximize_metrics else "minimize"
         
+        def optuna_callback(study, trial):
+            if progress_callback:
+                # trial.number starts at 0, so we add 1
+                progress_callback(trial.number + 1, self.n_trials)
+                
         self.study = optuna.create_study(direction=direction)
-        self.study.optimize(self._create_objective(X, y), n_trials=self.n_trials)
+        self.study.optimize(
+            self._create_objective(X, y), 
+            n_trials=self.n_trials,
+            callbacks=[optuna_callback] 
+            )
         self.best_score = self.study.best_value 
         
         print("\n" + "="*30)

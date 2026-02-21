@@ -59,7 +59,12 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         
         job_database[job_id] = "Training..."        
         automl = AutoModelSelector(n_trials=trials, task=task, scoring='auto')
-        automl.fit(X, y)
+        
+        def update_api_status(current_trial, total_trials):
+            percentage = int((current_trial / total_trials) * 100)
+            job_database[job_id] = f"Training... Trial {current_trial}/{total_trials} ({percentage}%)"
+        
+        automl.fit(X, y, progress_callback=update_api_status)
         
         model_path = f"api_models/{job_id}_model.pkl"
         joblib.dump(automl, model_path)
