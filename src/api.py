@@ -4,9 +4,10 @@ import pandas as pd
 import joblib
 from typing import List
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 import sys
+import io
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -120,22 +121,45 @@ def download_model(job_id: str):
     # Using HTTPException is cleaner than returning a fake error dict
     raise HTTPException(status_code=404, detail="Model not found or still training.")
 
-@app.post("/predict", response_model=PredictionResponse)
-async def make_predictions(
-    job_id: str = Form(...),
-    file: UploadFile = File(...)
-):
+
+@app.post("/predict")
+async def predict(job_id: str = Form(...), file: UploadFile = File(...)):
+
     model_path = f"api_models/{job_id}_model.pkl"
-    
     if not os.path.exists(model_path):
-        raise HTTPException(status_code=404, detail="Model not found. Please provide a valid Job ID.")
-        
-    automl = joblib.load(model_path)
-    df_test = pd.read_csv(file.file)
-    predictions = automl.predict(df_test)
+        raise HTTPException(status_code=404, detail="Model not found for this Job ID.")
     
-    return PredictionResponse(
-        job_id=job_id,
-        total_predictions=len(predictions),
-        predictions=predictions.tolist()
+    automl = joblib.load(model_path)
+    
+    df = pd.read_csv(file.file)
+    
+    # Run predictions
+    predictions = automl.predict(df)
+    
+    # Smart column detection for Kaggle/Standard formats
+    id_col = None
+    for candidate in ["Id", "id", "index"]:
+        if candidate in df.columns:
+            id_col = candidate
+            break
+    
+    if id_col:
+        output_df = pd.DataFrame({id_col: df[id_col], "Target": predictions})
+    else:
+        output_df = pd.DataFrame({
+        "id": range(1, len(predictions) + 1),
+        "Prediction": predictions
+    })
+
+    # Convert to CSV in memory using streams for speed(uses RAM instead of hard disk)
+    stream = io.StringIO()
+    output_df.to_csv(stream, index=False)
+    
+    # Return as a downloadable file
+    response = StreamingResponse(
+        iter([stream.getvalue()]),
+        media_type="text/csv"
     )
+    response.headers["Content-Disposition"] = f"attachment; filename=predictions_{job_id}.csv"
+    
+    return response
