@@ -142,7 +142,7 @@ class AutoModelSelector:
         # AUTO-SELECT SCORING METRIC 
         if self.scoring == 'auto':
             if self.task == 'regression':
-                self.scoring = 'neg_mean_squared_error'
+                self.scoring = 'r2'
             else:
                 self.scoring = 'accuracy'
                 
