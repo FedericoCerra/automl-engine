@@ -5,19 +5,21 @@ on:
     branches: [ main ]
 
 jobs:
-  sync-to-hf:
+  sync-to-spaces:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout GitHub Code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          
-      - name: Push to Hugging Face Spaces
+
+      - name: Install Hugging Face Hub
+        run: pip install huggingface_hub
+
+      - name: Push Backend to automl-engine Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git remote add hf https://fedede:$HF_TOKEN@huggingface.co/spaces/fedede/automl-engine
-          git push hf main --force
+        run: huggingface-cli upload fedede/automl-engine ./backend . --repo-type space --token $HF_TOKEN
+
+      - name: Push Frontend to Streamlit Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: huggingface-cli upload fedede/auto-ml-frontend ./frontend . --repo-type space --token $HF_TOKEN

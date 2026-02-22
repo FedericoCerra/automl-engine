@@ -39,8 +39,6 @@ times_database = {}
 class TrainingTicketResponse(BaseModel):
     message: str
     job_id: str
-      
-
 
 class JobStatusResponse(BaseModel):
     job_id: str
