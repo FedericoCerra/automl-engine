@@ -8,8 +8,8 @@ from sklearn.preprocessing import LabelEncoder
 import numpy as np
 import pandas as pd
 
-from src.preprocessing import AutoPreProcessor
-from src.feature_eng import AutoFeatureEngine
+from preprocessing import AutoPreProcessor
+from feature_eng import AutoFeatureEngine
 
 class AutoModelSelector:
     def __init__(self, n_trials=50, task='auto', scoring='auto'):

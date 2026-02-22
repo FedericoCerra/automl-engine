@@ -9,12 +9,12 @@ from pydantic import BaseModel, Field
 import sys
 import io
 from datetime import datetime
-
+import shutil
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
-from src.model_selector import AutoModelSelector
+from model_selector import AutoModelSelector
 
 app = FastAPI(title="AutoML Master API", description="Drag, Drop, and Train ML Models")
 
@@ -104,11 +104,15 @@ async def start_training(
     trials: int = Form(20),
     task: str = Form("auto")
 ):
+    # Generate the unique ID
     job_id = str(uuid.uuid4())
-    file_path = f"api_uploads/{job_id}_{file.filename}"
     
+    # Safely join the absolute path with the filename
+    file_path = os.path.join(UPLOAD_DIR, f"{job_id}_{file.filename}")
+    
+    # Save the file
     with open(file_path, "wb") as buffer:
-        buffer.write(await file.read())
+        shutil.copyfileobj(file.file, buffer)
         
     job_database[job_id] = "PENDING - Waiting in queue"
     background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task)    
