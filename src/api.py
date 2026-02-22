@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 import sys
 import io
+from datetime import datetime
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -20,11 +21,19 @@ app = FastAPI(title="AutoML Master API", description="Drag, Drop, and Train ML M
 @app.get("/", include_in_schema=False)
 def redirect_to_docs():
     return RedirectResponse(url="/docs")
-os.makedirs("api_uploads", exist_ok=True)
-os.makedirs("api_models", exist_ok=True)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Force the folders to be built strictly inside that directory
+UPLOAD_DIR = os.path.join(BASE_DIR, "api_uploads")
+MODEL_DIR = os.path.join(BASE_DIR, "api_models")
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 job_database = {}
 results_database = {}
+times_database = {}
 
 # PYDANTIC SCHEMAS 
 class TrainingTicketResponse(BaseModel):
@@ -38,6 +47,8 @@ class JobStatusResponse(BaseModel):
     status: str
     score: float | None = Field(default=None, example=0.85)
     metric: str | None = Field(default=None, example="accuracy")  
+    start_time: str | None = None
+    end_time: str | None = None
 
 class PredictionResponse(BaseModel):
     job_id: str
@@ -46,6 +57,7 @@ class PredictionResponse(BaseModel):
 
 # BACKGROUND WORKER
 def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str):
+    times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
     try:
         job_database[job_id] = "Loading data..."
         df = pd.read_csv(file_path)
@@ -77,10 +89,12 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         }
         
         job_database[job_id] = "COMPLETED"
-    
+        times_database[job_id]["end"] = datetime.now().strftime("%H:%M:%S") # Log end time
+        
     except Exception as e:
         job_database[job_id] = f"FAILED: {str(e)}"
-
+        times_database[job_id]["end"] = datetime.now().strftime("%H:%M:%S")
+        
 # ENDPOINTS
 @app.post("/train", response_model=TrainingTicketResponse)
 async def start_training(
@@ -110,11 +124,15 @@ def check_status(job_id: str):
     # Check if there are final results for this job
     results = results_database.get(job_id, {})
     
+    times = times_database.get(job_id, {})
+    
     return JobStatusResponse(
         job_id=job_id, 
         status=status,
         score=results.get("score"),
-        metric=results.get("metric")
+        metric=results.get("metric"),
+        start_time=times.get("start"), 
+        end_time=times.get("end")
     )
 
 @app.get("/download/{job_id}")
@@ -141,22 +159,27 @@ async def predict(job_id: str = Form(...), file: UploadFile = File(...)):
     # Run predictions
     predictions = automl.predict(df)
     
+    # 👇 NEW: Extract the memorized target name (Fallback to "Prediction" just in case)
+    target_col_name = getattr(automl, "target_name", "Prediction")
+    
     # Smart column detection for Kaggle/Standard formats
     id_col = None
-    for candidate in ["Id", "id", "index"]:
+    for candidate in ["Id", "id", "index", "PassengerId"]:
         if candidate in df.columns:
             id_col = candidate
             break
     
     if id_col:
-        output_df = pd.DataFrame({id_col: df[id_col], "Target": predictions})
+        # Use the dynamic target_col_name here
+        output_df = pd.DataFrame({id_col: df[id_col], target_col_name: predictions})
     else:
+        # Use the dynamic target_col_name here too
         output_df = pd.DataFrame({
-        "id": range(1, len(predictions) + 1),
-        "Prediction": predictions
-    })
+            "id": range(1, len(predictions) + 1),
+            target_col_name: predictions
+        })
 
-    # Convert to CSV in memory using streams for speed(uses RAM instead of hard disk)
+    # Convert to CSV in memory
     stream = io.StringIO()
     output_df.to_csv(stream, index=False)
     

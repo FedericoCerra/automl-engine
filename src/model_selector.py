@@ -121,6 +121,8 @@ class AutoModelSelector:
 
     def fit(self, X, y, progress_callback=None):
 
+        self.target_name = y.name
+        
         # AUTO-SELECT TASK
         if self.task == 'auto':
             y_series = pd.Series(y)
