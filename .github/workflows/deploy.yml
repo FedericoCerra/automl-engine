@@ -22,9 +22,11 @@ jobs:
       - name: Push Backend to automl-engine Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: huggingface-cli upload fedede/automl-engine ./backend . --repo-type space --token $HF_TOKEN
+        run: |
+          python -c "import os; from huggingface_hub import HfApi; HfApi().upload_folder(folder_path='./backend', repo_id='fedede/automl-engine', repo_type='space', token=os.environ['HF_TOKEN'])"
 
       - name: Push Frontend to Streamlit Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: huggingface-cli upload fedede/auto-ml-frontend ./frontend . --repo-type space --token $HF_TOKEN
+        run: |
+          python -c "import os; from huggingface_hub import HfApi; HfApi().upload_folder(folder_path='./frontend', repo_id='fedede/auto-ml-frontend', repo_type='space', token=os.environ['HF_TOKEN'])"
