@@ -1,34 +1,32 @@
-name: Deploy to Hugging Face Spaces
+name: Deploy to Hugging Face
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  deploy:
+  sync-to-spaces:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout GitHub Code
         uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          fetch-depth: 0 # Crucial: Git needs the full history to perform a subtree split
-          
-      - name: Push to HF Spaces via Git Subtree
+          python-version: '3.10'
+
+      - name: Install Hugging Face Hub
+        run: pip install huggingface_hub
+
+      - name: Push Backend to automl-engine Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
+          python -c "import os; from huggingface_hub import HfApi; HfApi().upload_folder(folder_path='./backend', repo_id='fedede/automl-engine', repo_type='space', token=os.environ['HF_TOKEN'])"
 
-          git remote add hf-backend https://fedede:$HF_TOKEN@huggingface.co/spaces/fedede/automl-engine
-          git remote add hf-frontend https://fedede:$HF_TOKEN@huggingface.co/spaces/fedede/automl-frontend
-
-
-
-          # 2. Isolate the backend folder and force push it to the backend space
-          git subtree split --prefix backend -b deploy-backend
-          git push hf-backend deploy-backend:main --force
-
-          # 3. Isolate the frontend folder and force push it to the frontend space
-          git subtree split --prefix frontend -b deploy-frontend
-          git push hf-frontend deploy-frontend:main --force
+      - name: Push Frontend to Streamlit Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "import os; from huggingface_hub import HfApi; HfApi().upload_folder(folder_path='./frontend', repo_id='fedede/automl-frontend', repo_type='space', token=os.environ['HF_TOKEN'])"
