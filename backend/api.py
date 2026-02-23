@@ -156,13 +156,24 @@ def download_model(job_id: str):
 
 
 @app.post("/predict")
-async def predict(job_id: str = Form(...), file: UploadFile = File(...)):
-
-    model_path = f"api_models/{job_id}_model.pkl"
-    if not os.path.exists(model_path):
-        raise HTTPException(status_code=404, detail="Model not found for this Job ID.")
-    
-    automl = joblib.load(model_path)
+async def predict(
+    job_id: str = Form(None), 
+    file: UploadFile = File(...),
+    model_file: UploadFile = File(None)
+):
+    # 1. Determine source of the model
+    if model_file:
+        try:
+            automl = joblib.load(model_file.file)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid model file: {str(e)}")
+    elif job_id:
+        model_path = f"api_models/{job_id}_model.pkl"
+        if not os.path.exists(model_path):
+            raise HTTPException(status_code=404, detail="Model not found for this Job ID.")
+        automl = joblib.load(model_path)
+    else:
+        raise HTTPException(status_code=400, detail="Please provide a Job ID or upload a Model file.")
     
     df = pd.read_csv(file.file)
     

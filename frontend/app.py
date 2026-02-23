@@ -8,7 +8,7 @@ import os
 import uuid
 
 # --- CONFIGURATION ---
-API_URL = "https://fedede-automl-engine.hf.space"
+API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="AutoML Master", layout="centered")
 
@@ -33,6 +33,15 @@ if "jobs" not in st.session_state:
 
 st.title("AutoML Master Engine")
 st.markdown("Drag, drop, and train Machine Learning models instantly.")
+
+# --- SIDEBAR ---
+with st.sidebar:
+    st.write(f"**User Session:** `{user_id}`")
+    if st.button("Clear History", type="primary"):
+        if os.path.exists(jobs_file):
+            os.remove(jobs_file)
+        st.session_state.jobs = []
+        st.rerun()
 
 tab_train, tab_predict = st.tabs(["Train Model", "Predict"])
 
@@ -108,13 +117,13 @@ with tab_train:
     if train_file is not None:
         df_train = pd.read_csv(train_file)
         
-        st.markdown("**Engine Settings:**")
-        col1, col2 = st.columns(2)
-        with col1:
-            last_col_index = len(df_train.columns) - 1
-            target_col = st.selectbox("Target Column to Predict:", df_train.columns, index=last_col_index)
-        with col2:
-            trials = st.number_input("Number of Trials:", min_value=1, max_value=100, value=20)
+        with st.expander("⚙️ Engine Settings", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                last_col_index = len(df_train.columns) - 1
+                target_col = st.selectbox("Target Column to Predict:", df_train.columns, index=last_col_index)
+            with col2:
+                trials = st.number_input("Number of Trials:", min_value=1, max_value=100, value=20)
             
         if st.button("Start Training", type="primary"):
             train_file.seek(0)
@@ -142,11 +151,12 @@ with tab_train:
 with tab_predict:
     st.header("2. Generate Predictions")
     
-    input_method = st.radio("Select your model source:", ["Use a recent model", "Enter an old Job ID"], horizontal=True)
+    input_method = st.radio("Model Source:", ["Select from History", "Upload Model File (.pkl)"], horizontal=True)
     
     predict_job_id = None
+    uploaded_model = None
     
-    if input_method == "Use a recent model":
+    if input_method == "Select from History":
         job_options = list(reversed(st.session_state.jobs))
         if job_options:
             predict_job_id = st.selectbox(
@@ -155,9 +165,9 @@ with tab_predict:
                 format_func=lambda x: f"Model ID: {x[:8]}"
             )
         else:
-            st.info("No recent models found in this session. Train one first, or enter an old ID.")
+            st.info("No recent models found. Train one first or upload a .pkl file.")
     else:
-        predict_job_id = st.text_input("Paste your full Job ID here:")
+        uploaded_model = st.file_uploader("Drag & Drop your .pkl model here", type=["pkl"])
     
     predict_file = st.file_uploader("Upload New Data for Prediction (CSV)", type=["csv"], accept_multiple_files=False, key="predict_uploader")
     
@@ -168,18 +178,31 @@ with tab_predict:
         with st.expander("Show Test Data Preview"):
             st.dataframe(df_predict.head())
         
-        pred_state_key = f"prediction_{predict_job_id}"
+        # Create a unique key for session state based on input method
+        if uploaded_model:
+            pred_state_key = f"prediction_upload_{uploaded_model.name}"
+        else:
+            pred_state_key = f"prediction_{predict_job_id}"
         
         if st.button("Generate Predictions", type="primary"):
-            if not predict_job_id:
-                st.warning("Please select or enter a Job ID first.")
+            if not predict_job_id and not uploaded_model:
+                st.warning("Please select a model or upload a .pkl file.")
             else:
                 with st.spinner("Waking up model and predicting..."):
                     predict_file.seek(0)
+                    
+                    files = {"file": (predict_file.name, predict_file, "text/csv")}
+                    data = {}
+                    
+                    if uploaded_model:
+                        files["model_file"] = (uploaded_model.name, uploaded_model, "application/octet-stream")
+                    else:
+                        data["job_id"] = predict_job_id
+
                     response = requests.post(
                         f"{API_URL}/predict",
-                        data={"job_id": predict_job_id},
-                        files={"file": (predict_file.name, predict_file, "text/csv")}
+                        data=data,
+                        files=files
                     )
                     
                     if response.status_code == 200:
@@ -202,6 +225,6 @@ with tab_predict:
             st.download_button(
                 label="Download Predictions (CSV)",
                 data=csv_bytes,
-                file_name=f"predictions_{predict_job_id}.csv",
+                file_name=f"predictions.csv",
                 mime="text/csv"
             )
