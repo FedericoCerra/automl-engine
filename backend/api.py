@@ -60,6 +60,9 @@ class PredictionResponse(BaseModel):
 def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str):
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
     try:
+        # Stop if job was deleted
+        if job_id not in job_database: return
+
         job_database[job_id] = "Loading data..."
         df = pd.read_csv(file_path)
         
@@ -74,6 +77,8 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         automl = AutoModelSelector(n_trials=trials, task=task, scoring='auto')
         
         def update_api_status(current_trial, total_trials):
+            # Stop if job was deleted
+            if job_id not in job_database: return
             percentage = int((current_trial / total_trials) * 100)
             job_database[job_id] = f"Training... Trial {current_trial}/{total_trials} ({percentage}%)"
         
@@ -84,6 +89,9 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         
         os.remove(file_path)
         
+        # Stop if job was deleted
+        if job_id not in job_database: return
+
         results_database[job_id] = {
             "score": abs(automl.best_score), # abs() removes the negative sign from MSE
             "metric": automl.scoring
@@ -154,6 +162,20 @@ def download_model(job_id: str):
     # Using HTTPException is cleaner than returning a fake error dict
     raise HTTPException(status_code=404, detail="Model not found or still training.")
 
+@app.delete("/job/{job_id}")
+def delete_job(job_id: str):
+    # Remove from databases
+    job_database.pop(job_id, None)
+    results_database.pop(job_id, None)
+    times_database.pop(job_id, None)
+    meta_database.pop(job_id, None)
+    
+    # Remove model file
+    model_path = f"api_models/{job_id}_model.pkl"
+    if os.path.exists(model_path):
+        os.remove(model_path)
+        
+    return {"message": "Job deleted"}
 
 @app.post("/predict")
 async def predict(

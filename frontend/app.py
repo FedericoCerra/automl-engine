@@ -34,15 +34,6 @@ if "jobs" not in st.session_state:
 st.title("AutoML Master Engine")
 st.markdown("Drag, drop, and train Machine Learning models instantly.")
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.write(f"**User Session:** `{user_id}`")
-    if st.button("Clear History", type="primary"):
-        if os.path.exists(jobs_file):
-            os.remove(jobs_file)
-        st.session_state.jobs = []
-        st.rerun()
-
 tab_train, tab_predict = st.tabs(["Train Model", "Predict"])
 
 # ==========================================
@@ -71,41 +62,52 @@ def render_dashboard():
         
         is_active = "COMPLETED" not in status_text and "FAILED" not in status_text
         
-        with st.expander(f"Model: {job} ({filename}) | Status: {status_text}", expanded=is_active):
-            
-            # 1. Hide the "Finished" text if the engine is still running
-            if is_active or end in [None, "N/A"]:
-                st.caption(f"**ID:** `{job}` | **Started:** {start}")
-            else:
-                st.caption(f"**ID:** `{job}` | **Started:** {start} | **Finished:** {end}")
-            
-            with st.expander("Training Data Details"):
-                st.write(f"**File Name:** `{filename}`")
-                st.write(f"**Target Column:** `{target}`")
-            
-            if is_active:
-                match = re.search(r'\((\d+)%\)', status_text)
-                if match:
-                    pct = int(match.group(1))
-                    # 2. Add the percentage text directly above the progress bar
-                    st.write(f"**Progress:** {pct}%")
-                    st.progress(pct)
-                else:
-                    st.write("**Progress:** Starting...")
-                    st.progress(0)
-            else:
-                if score:
-                    st.write(f"**Final Score:** {score:.4f} ({status_res.get('metric')})")
+        # Layout: Expander for details | Delete Button
+        col_exp, col_del = st.columns([0.9, 0.1])
+        
+        with col_exp:
+            with st.expander(f"Model: {job} ({filename}) | Status: {status_text}", expanded=is_active):
                 
-                if status_text == "COMPLETED":
-                    dl_res = requests.get(f"{API_URL}/download/{job}")
-                    if dl_res.status_code == 200:
-                        st.download_button(
-                            label="Download Model (.pkl)",
-                            data=dl_res.content,
-                            file_name=f"model_{job[:8]}.pkl",
-                            key=f"dl_{job}"
-                        )
+                # 1. Hide the "Finished" text if the engine is still running
+                if is_active or end in [None, "N/A"]:
+                    st.caption(f"**ID:** `{job}` | **Started:** {start}")
+                else:
+                    st.caption(f"**ID:** `{job}` | **Started:** {start} | **Finished:** {end}")
+                
+                with st.expander("Training Data Details"):
+                    st.write(f"**File Name:** `{filename}`")
+                    st.write(f"**Target Column:** `{target}`")
+                
+                if is_active:
+                    match = re.search(r'\((\d+)%\)', status_text)
+                    if match:
+                        pct = int(match.group(1))
+                        # 2. Add the percentage text directly above the progress bar
+                        st.write(f"**Progress:** {pct}%")
+                        st.progress(pct)
+                    else:
+                        st.write("**Progress:** Starting...")
+                        st.progress(0)
+                else:
+                    if score:
+                        st.write(f"**Final Score:** {score:.4f} ({status_res.get('metric')})")
+                    
+                    if status_text == "COMPLETED":
+                        dl_res = requests.get(f"{API_URL}/download/{job}")
+                        if dl_res.status_code == 200:
+                            st.download_button(
+                                label="Download Model (.pkl)",
+                                data=dl_res.content,
+                                file_name=f"model_{job[:8]}.pkl",
+                                key=f"dl_{job}"
+                            )
+        with col_del:
+            if st.button("❌", key=f"del_{job}", help="Delete Model"):
+                st.session_state.jobs.remove(job)
+                with open(jobs_file, "w") as f:
+                    json.dump(st.session_state.jobs, f)
+                requests.delete(f"{API_URL}/job/{job}")
+                st.rerun()
 # ==========================================
 # SECTION 1: TRAIN
 # ==========================================
