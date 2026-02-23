@@ -3,14 +3,33 @@ import pandas as pd
 import requests
 import re
 import io
+import json
+import os
+import uuid
 
 # --- CONFIGURATION ---
 API_URL = "https://fedede-automl-engine.hf.space"
 
 st.set_page_config(page_title="AutoML Master", layout="centered")
 
+# --- SESSION MANAGEMENT ---
+if "uid" in st.query_params:
+    user_id = st.query_params["uid"]
+else:
+    user_id = str(uuid.uuid4())[:8]
+    st.query_params["uid"] = user_id
+
+jobs_file = f"jobs_{user_id}.json"
+
 if "jobs" not in st.session_state:
-    st.session_state.jobs = []
+    if os.path.exists(jobs_file):
+        try:
+            with open(jobs_file, "r") as f:
+                st.session_state.jobs = json.load(f)
+        except:
+            st.session_state.jobs = []
+    else:
+        st.session_state.jobs = []
 
 st.title("AutoML Master Engine")
 st.markdown("Drag, drop, and train Machine Learning models instantly.")
@@ -108,6 +127,9 @@ with tab_train:
             if response.status_code == 200:
                 job_id = response.json()["job_id"]
                 st.session_state.jobs.append(job_id)
+                # Save job list to user-specific file
+                with open(jobs_file, "w") as f:
+                    json.dump(st.session_state.jobs, f)
             else:
                 st.error(f"Error: {response.text}")
 
