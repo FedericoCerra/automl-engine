@@ -1,0 +1,40 @@
+[33m31a8072[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix: fixed github issues relative to merge
+[33m550df24[m feat: added database
+[33m7d9a0c0[m feat: added database, for anonymous users
+[33m694a701[m fix: fixed the global model tab
+[33mb6a6604[m fix: fixed merge conflicts
+[33mbfd2e53[m Merge branch 'main' of https://github.com/FedericoCerra/automl-engine
+[33me5d6c87[m feat: added global model dashboard
+[33md2780fd[m feat: added global model dashboard
+[33m051bf57[m feat: added "memory" to the app, making model dashboard survive refresh
+[33mcafc530[m fix: API_URL set to hf format
+[33m46b4f97[m fix:
+[33ma8c7e50[m fix: API_URL set to hf format
+[33m0db03d6[m Update README.md
+[33m87c9bf2[m fix: remove strict streamlit version to resolve HF build conflict
+[33mab8875c[m fix: reverted deploy to pure python command
+[33me2b0fc5[m fix: rename frontend file to app.py and add HF Streamlit blueprint
+[33m09c5648[m ci: revert to pure git deployment using subtree split
+[33m4f6f9c4[m fix: bypass CLI and use Python inline script for Hugging Face deployment
+[33m72f8680[m fix: added python setup to the deploy
+[33m4ffa7b0[m refactor: split project into frontend and backend microservices
+[33m7e75b2b[m refactor: restructure into backend/frontend monorepo and fix local imports
+[33ma2fe4c3[m feat: create Streamlit frontend dashboard for AutoML engine
+[33mcec4d87[m refactor: changed standard scoring for regression to r2
+[33m187b04c[m feat: added optuna callback for outputting training percentage in api
+[33m5b1d6d5[m feat: prediction now returns a CSV instead of json
+[33m2945d07[m fix: added self.best_score = self.study.best_value in model_selector
+[33md1612ba[m fix: now it automatically redirects to /docs for HF to see the API
+[33m6dc8e18[m Merge branch 'main' of https://github.com/FedericoCerra/automl-engine
+[33m6fa2ce0[m added training in full pipeline notebook
+[33m05df0a8[m Update README.md
+[33m1cefcc7[m feat: added deploy to HF
+[33mabdde14[m fix: quick fix to README
+[33mb777e85[m Merge branch 'main' of https://github.com/FedericoCerra/automl-engine
+[33m4ba644a[m feat: addition of README
+[33mb9f3acc[m feat: addotion of README
+[33m8c58b59[m feat: addotion of README
+[33m8576672[m feat: evaluation metrics to API, and Docker deployment
+[33mf5cdf79[m feat: implement asynchronous REST API, auto-task detection, and inference notebook
+[33m0d2a15c[m feat: implement classification engine, CLI, and isolate polynomials
+[33m816f4b2[m feat: implement core AutoML regression engine MVP
