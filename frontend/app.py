@@ -38,16 +38,22 @@ def render_dashboard():
         score = status_res.get("score")
         start = status_res.get("start_time", "N/A")
         end = status_res.get("end_time", "N/A")
+        filename = status_res.get("filename", "Unknown File")
+        target = status_res.get("target", "Unknown Target")
         
         is_active = "COMPLETED" not in status_text and "FAILED" not in status_text
         
-        with st.expander(f"Model ID: {job[:8]} | Status: {status_text}", expanded=is_active):
+        with st.expander(f"Model: {job} ({filename}) | Status: {status_text}", expanded=is_active):
             
             # 1. Hide the "Finished" text if the engine is still running
             if is_active or end in [None, "N/A"]:
                 st.caption(f"**ID:** `{job}` | **Started:** {start}")
             else:
                 st.caption(f"**ID:** `{job}` | **Started:** {start} | **Finished:** {end}")
+            
+            with st.expander("Training Data Details"):
+                st.write(f"**File Name:** `{filename}`")
+                st.write(f"**Target Column:** `{target}`")
             
             if is_active:
                 match = re.search(r'\((\d+)%\)', status_text)

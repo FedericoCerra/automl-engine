@@ -34,6 +34,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 job_database = {}
 results_database = {}
 times_database = {}
+meta_database = {}
 
 # PYDANTIC SCHEMAS 
 class TrainingTicketResponse(BaseModel):
@@ -47,6 +48,8 @@ class JobStatusResponse(BaseModel):
     metric: str | None = Field(default=None, example="accuracy")  
     start_time: str | None = None
     end_time: str | None = None
+    filename: str | None = None
+    target: str | None = None
 
 class PredictionResponse(BaseModel):
     job_id: str
@@ -103,7 +106,7 @@ async def start_training(
     task: str = Form("auto")
 ):
     # Generate the unique ID
-    job_id = str(uuid.uuid4())
+    job_id = str(uuid.uuid4())[:8]
     
     # Safely join the absolute path with the filename
     file_path = os.path.join(UPLOAD_DIR, f"{job_id}_{file.filename}")
@@ -113,6 +116,8 @@ async def start_training(
         shutil.copyfileobj(file.file, buffer)
         
     job_database[job_id] = "PENDING - Waiting in queue"
+    times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
+    meta_database[job_id] = {"filename": file.filename, "target": target}
     background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task)    
     return TrainingTicketResponse(
         message="Ticket generated! Training started in background.", 
@@ -127,6 +132,7 @@ def check_status(job_id: str):
     results = results_database.get(job_id, {})
     
     times = times_database.get(job_id, {})
+    meta = meta_database.get(job_id, {})
     
     return JobStatusResponse(
         job_id=job_id, 
@@ -134,7 +140,9 @@ def check_status(job_id: str):
         score=results.get("score"),
         metric=results.get("metric"),
         start_time=times.get("start"), 
-        end_time=times.get("end")
+        end_time=times.get("end"),
+        filename=meta.get("filename"),
+        target=meta.get("target")
     )
 
 @app.get("/download/{job_id}")
