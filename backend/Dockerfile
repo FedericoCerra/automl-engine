@@ -26,4 +26,4 @@ RUN mkdir -p api_uploads api_models
 EXPOSE 7860
 
 # Boot up the server 
-CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "7860"]
