@@ -6,6 +6,7 @@ import io
 
 # --- CONFIGURATION ---
 API_URL = "https://fedede-automl-engine.hf.space"
+
 st.set_page_config(page_title="AutoML Master", layout="centered")
 
 if "jobs" not in st.session_state:
