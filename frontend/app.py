@@ -6,6 +6,7 @@ import io
 import json
 import os
 import uuid
+import plotly.express as px
 
 # --- CONFIGURATION ---
 API_URL = "https://fedede-automl-engine.hf.space"
@@ -91,6 +92,18 @@ def render_dashboard():
                 else:
                     if score:
                         st.write(f"**Final Score:** {score:.4f} ({status_res.get('metric')})")
+                    
+                    # Feature Importance Visualization
+                    feat_imp = status_res.get("feature_importance")
+                    if feat_imp:
+                        with st.expander("📊 Feature Importance", expanded=False):
+                            df_imp = pd.DataFrame(list(feat_imp.items()), columns=["Feature", "Importance"])
+                            df_imp = df_imp.sort_values(by="Importance", ascending=False).head(10)
+                            
+                            fig = px.bar(df_imp, x="Importance", y="Feature", orientation='h', 
+                                         title="Top 10 Important Features", color="Importance")
+                            fig.update_layout(yaxis={'categoryorder':'total ascending'})
+                            st.plotly_chart(fig, use_container_width=True)
                     
                     if status_text == "COMPLETED":
                         dl_res = requests.get(f"{API_URL}/download/{job}")
@@ -222,6 +235,23 @@ with tab_predict:
             # 3. Toggleable Prediction Preview (Starts open by default)
             with st.expander("Show Predictions Preview", expanded=True):
                 st.dataframe(df_results.head())
+            
+            # Prediction Distribution Visualization
+            st.subheader("Prediction Distribution")
+            pred_col = df_results.columns[-1] # Assume last column is the prediction
+            
+            if pd.api.types.is_numeric_dtype(df_results[pred_col]):
+                # Regression: Histogram
+                fig_pred = px.histogram(df_results, x=pred_col, title=f"Distribution of {pred_col}",
+                                        marginal="box", color_discrete_sequence=['#636EFA'])
+                st.plotly_chart(fig_pred, use_container_width=True)
+            else:
+                # Classification: Bar Chart
+                counts = df_results[pred_col].value_counts().reset_index()
+                counts.columns = [pred_col, "Count"]
+                fig_pred = px.bar(counts, x=pred_col, y="Count", title=f"Class Distribution: {pred_col}",
+                                  color=pred_col, text="Count")
+                st.plotly_chart(fig_pred, use_container_width=True)
             
             # 4. The Permanent Download Button
             st.download_button(
