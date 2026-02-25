@@ -24,7 +24,7 @@ Automatically detects ML task types, performs intelligent hyperparameter tuning 
 
 Don't want to run it locally? Try the live cloud versions hosted on Hugging Face Spaces:
 
-* **🎨 Streamlit Dashboard (Frontend):** [Test the UI Live Here](https://huggingface.co/spaces/fedede/your-frontend-space)
+* **🎨 Streamlit Dashboard (Frontend):** [Test the UI Live Here](https://huggingface.co/spaces/fedede/automl-frontend)
 * **⚙️ FastAPI Engine (Backend Docs):** [View the API Swagger UI Here](https://huggingface.co/spaces/fedede/automl-engine)
 
 ---
