@@ -1,12 +1,11 @@
-fastapi
-uvicorn
-python-multipart
-pydantic
+fastapi==0.109.2
+uvicorn==0.27.1
+python-multipart==0.0.9
+pydantic==2.6.3
 pandas
 scikit-learn
 xgboost
 optuna
 joblib
-streamlit
 shap
 matplotlib
