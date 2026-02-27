@@ -46,6 +46,7 @@ class JobStatusResponse(BaseModel):
     status: str
     score: float | None = Field(default=None, example=0.85)
     metric: str | None = Field(default=None, example="accuracy")  
+    feature_importance: dict | None = None
     start_time: str | None = None
     end_time: str | None = None
     filename: str | None = None
@@ -84,6 +85,29 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         
         automl.fit(X, y, progress_callback=update_api_status)
         
+        # Extract Feature Importance (if supported by the model)
+        feat_importance = None
+        try:
+            if hasattr(automl.best_pipeline, "named_steps"):
+                pipeline = automl.best_pipeline
+                model_step = pipeline.named_steps["model"]
+                
+                # Check if model supports feature importance (e.g., Trees)
+                if hasattr(model_step, "feature_importances_"):
+                    importances = model_step.feature_importances_
+                    
+                    # Get feature names from pipeline transformers
+                    preprocessor = pipeline.named_steps["preprocessor"]
+                    feature_eng = pipeline.named_steps["feature_eng"]
+                    
+                    feature_names = preprocessor.get_feature_names_out()
+                    feature_names = feature_eng.get_feature_names_out(feature_names)
+                    
+                    if len(feature_names) == len(importances):
+                        feat_importance = {name: float(imp) for name, imp in zip(feature_names, importances)}
+        except Exception as e:
+            print(f"Feature importance extraction warning: {e}")
+
         model_path = f"api_models/{job_id}_model.pkl"
         joblib.dump(automl, model_path)
         
@@ -102,7 +126,8 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
 
         results_database[job_id] = {
             "score": abs(automl.best_score), # abs() removes the negative sign from MSE
-            "metric": automl.scoring
+            "metric": automl.scoring,
+            "feature_importance": feat_importance
         }
         
         job_database[job_id] = "COMPLETED"
@@ -156,6 +181,7 @@ def check_status(job_id: str):
         status=status,
         score=results.get("score"),
         metric=results.get("metric"),
+        feature_importance=results.get("feature_importance"),
         start_time=times.get("start"), 
         end_time=times.get("end"),
         filename=meta.get("filename"),
