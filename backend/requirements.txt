@@ -8,3 +8,5 @@ xgboost
 optuna
 joblib
 streamlit
+shap
+matplotlib

@@ -24,6 +24,7 @@ class AutoModelSelector:
         self.best_pipeline = None
         self.study = None
         self.label_encoder = None # For text targets in classification
+        self.shap_enabled = False
 
     def _create_objective(self, X, y):
         
@@ -38,6 +39,7 @@ class AutoModelSelector:
             degree = trial.suggest_int("poly_degree", 1, 2) if use_poly else 2
             
             use_pca = trial.suggest_categorical("use_pca", [True, False])
+
             pca_comps = trial.suggest_float("pca_components", 0.80, 0.95) if use_pca else 0.95
 
             # MODEL TUNING
@@ -124,8 +126,10 @@ class AutoModelSelector:
         return objective
 
     def fit(self, X, y, progress_callback=None):
+    def fit(self, X, y, progress_callback=None, shap_enabled=False):
 
         self.target_name = y.name
+        self.shap_enabled = shap_enabled
         
         # AUTO-SELECT TASK
         if self.task == 'auto':
@@ -247,43 +251,67 @@ class AutoModelSelector:
             print("Model not fitted yet.")
             return
 
-        # 1. Extract steps
-        preprocessor = self.best_pipeline.named_steps['preprocessor']
+        # Check if PCA is used
         feature_eng = self.best_pipeline.named_steps['feature_eng']
-        model = self.best_pipeline.named_steps['model']
+        use_pca = getattr(feature_eng, 'use_pca', False)
 
-        # 2. Transform X to the state it enters the model
-        X_trans = preprocessor.transform(X)
-        X_trans = feature_eng.transform(X_trans)
-
-        # 3. Get Feature Names
-        try:
-            feat_names = preprocessor.get_feature_names_out()
-            feat_names = feature_eng.get_feature_names_out(feat_names)
-        except:
-            feat_names = [f"Feature {i}" for i in range(X_trans.shape[1])]
-
-        # 4. Select Explainer
-        # Subsample for speed if dataset is large
-        if X_trans.shape[0] > 500:
-            X_bg = X_trans[:500]
+        # Subsample background data for speed
+        # KernelExplainer (used for PCA) is very slow, so we use a smaller sample 
+        limit = 50 if use_pca else 300
+        if X.shape[0] > limit:
+            X_bg = X.sample(limit, random_state=42)
         else:
-            X_bg = X_trans
+            X_bg = X
 
-        model_type = type(model).__name__
-        if "RandomForest" in model_type or "XGB" in model_type:
-            explainer = shap.TreeExplainer(model)
+        if use_pca:
+            # PCA is ON: We want importance of ORIGINAL features.
+            # We explain the whole pipeline as a black box using KernelExplainer.
+            print("Explaining pipeline with PCA (using KernelExplainer)...")
+            
+            def predict_wrapper(data):
+                # SHAP passes numpy arrays, pipeline expects DataFrame with column names
+                if isinstance(data, np.ndarray):
+                    data = pd.DataFrame(data, columns=X.columns)
+                return self.best_pipeline.predict(data)
+
+            explainer = shap.KernelExplainer(predict_wrapper, X_bg)
             shap_values = explainer.shap_values(X_bg)
+            
+            features_for_plot = X_bg
+            feature_names = X.columns
+
         else:
-            # SVM or others use KernelExplainer (slower)
-            explainer = shap.KernelExplainer(model.predict, X_bg)
-            shap_values = explainer.shap_values(X_bg)
+            # PCA is OFF: We can optimize by explaining the inner model directly.
+            preprocessor = self.best_pipeline.named_steps['preprocessor']
+            model = self.best_pipeline.named_steps['model']
+
+            # Transform X to the state it enters the model
+            X_trans = preprocessor.transform(X_bg)
+            X_trans = feature_eng.transform(X_trans)
+
+            # Get Feature Names
+            try:
+                feat_names = preprocessor.get_feature_names_out()
+                feat_names = feature_eng.get_feature_names_out(feat_names)
+            except:
+                feat_names = [f"Feature {i}" for i in range(X_trans.shape[1])]
+
+            model_type = type(model).__name__
+            if "RandomForest" in model_type or "XGB" in model_type:
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(X_trans)
+            else:
+                explainer = shap.KernelExplainer(model.predict, X_trans)
+                shap_values = explainer.shap_values(X_trans)
+            
+            features_for_plot = X_trans
+            feature_names = feat_names
 
         # 5. Plot
         plt.figure(figsize=(10, 6))
         # Handle binary/multiclass output (shap_values might be a list)
         vals = shap_values[1] if isinstance(shap_values, list) and len(shap_values) > 1 else shap_values
         
-        shap.summary_plot(vals, X_bg, feature_names=feat_names, show=False)
+        shap.summary_plot(vals, features_for_plot, feature_names=feature_names, show=False)
         plt.savefig(output_path, bbox_inches='tight')
         plt.close()
