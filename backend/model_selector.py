@@ -125,7 +125,6 @@ class AutoModelSelector:
 
         return objective
 
-    def fit(self, X, y, progress_callback=None):
     def fit(self, X, y, progress_callback=None, shap_enabled=False):
 
         self.target_name = y.name
