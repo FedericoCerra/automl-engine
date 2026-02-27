@@ -17,7 +17,7 @@ COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of your project files into the container
-COPY --chown=user . .
+COPY --chown=user . . 
 
 # Create the folders needed for the API and guarantee write permissions
 RUN mkdir -p api_uploads api_models
