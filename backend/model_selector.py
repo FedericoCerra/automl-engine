@@ -250,61 +250,35 @@ class AutoModelSelector:
             print("Model not fitted yet.")
             return
 
-        # Check if PCA is used
-        feature_eng = self.best_pipeline.named_steps['feature_eng']
-        use_pca = getattr(feature_eng, 'use_pca', False)
-
         # Subsample background data for speed
-        # KernelExplainer (used for PCA) is very slow, so we use a smaller sample 
-        limit = 50 if use_pca else 300
+        # KernelExplainer is very slow, so we use a smaller sample of ROWS
+        limit = 50
         if X.shape[0] > limit:
             X_bg = X.sample(limit, random_state=42)
         else:
             X_bg = X
 
-        if use_pca:
-            # PCA is ON: We want importance of ORIGINAL features.
-            # We explain the whole pipeline as a black box using KernelExplainer.
-            print("Explaining pipeline with PCA (using KernelExplainer)...")
+        # We explain the ORIGINAL features by treating the whole pipeline as a black box.
+        # This ensures we get importance for the columns in X, not the transformed ones.
+        print("Explaining pipeline (using KernelExplainer on original features)...")
+        
+        def predict_wrapper(data):
+            # SHAP passes numpy arrays, pipeline expects DataFrame with column names
+            if isinstance(data, np.ndarray):
+                data = pd.DataFrame(data, columns=X.columns)
+                
+                # Restore dtypes (SHAP converts to object/float in numpy)
+                for col in X.columns:
+                    if pd.api.types.is_numeric_dtype(X[col]):
+                        data[col] = pd.to_numeric(data[col], errors='coerce')
             
-            def predict_wrapper(data):
-                # SHAP passes numpy arrays, pipeline expects DataFrame with column names
-                if isinstance(data, np.ndarray):
-                    data = pd.DataFrame(data, columns=X.columns)
-                return self.best_pipeline.predict(data)
+            return self.best_pipeline.predict(data)
 
-            explainer = shap.KernelExplainer(predict_wrapper, X_bg)
-            shap_values = explainer.shap_values(X_bg)
-            
-            features_for_plot = X_bg
-            feature_names = X.columns
-
-        else:
-            # PCA is OFF: We can optimize by explaining the inner model directly.
-            preprocessor = self.best_pipeline.named_steps['preprocessor']
-            model = self.best_pipeline.named_steps['model']
-
-            # Transform X to the state it enters the model
-            X_trans = preprocessor.transform(X_bg)
-            X_trans = feature_eng.transform(X_trans)
-
-            # Get Feature Names
-            try:
-                feat_names = preprocessor.get_feature_names_out()
-                feat_names = feature_eng.get_feature_names_out(feat_names)
-            except:
-                feat_names = [f"Feature {i}" for i in range(X_trans.shape[1])]
-
-            model_type = type(model).__name__
-            if "RandomForest" in model_type or "XGB" in model_type:
-                explainer = shap.TreeExplainer(model)
-                shap_values = explainer.shap_values(X_trans)
-            else:
-                explainer = shap.KernelExplainer(model.predict, X_trans)
-                shap_values = explainer.shap_values(X_trans)
-            
-            features_for_plot = X_trans
-            feature_names = feat_names
+        explainer = shap.KernelExplainer(predict_wrapper, X_bg)
+        shap_values = explainer.shap_values(X_bg, nsamples=100)
+        
+        features_for_plot = X_bg
+        feature_names = X.columns
 
         # 5. Plot
         plt.figure(figsize=(10, 6))
