@@ -24,111 +24,149 @@ class AutoModelSelector:
         self.best_pipeline = None
         self.study = None
         self.label_encoder = None # For text targets in classification
-        self.shap_enabled = False
+        self.target_name = None
+
+    def _create_model_instance(self, model_type, params, y=None):
+        """Helper to instantiate model objects with specific parameters."""
+        random_state = 42
+        n_jobs = -1
+        
+        if self.task == 'regression':
+            if model_type == "rf":
+                return RandomForestRegressor(
+                    n_estimators=params['rf_n_estimators'],
+                    max_depth=params['rf_max_depth'],
+                    random_state=random_state, n_jobs=n_jobs
+                )
+            elif model_type == "xgb":
+                return xgb.XGBRegressor(
+                    n_estimators=params['xgb_n_estimators'],
+                    max_depth=params['xgb_max_depth'],
+                    learning_rate=params['xgb_lr'],
+                    objective="reg:squarederror",
+                    random_state=random_state, n_jobs=n_jobs
+                )
+            elif model_type == "svm":
+                return SVR(
+                    C=params['svm_C'],
+                    kernel="rbf",
+                    max_iter=2000
+                )
+
+        elif self.task == 'classification':
+            if model_type == "rf":
+                return RandomForestClassifier(
+                    n_estimators=params['rf_n_estimators'],
+                    max_depth=params['rf_max_depth'],
+                    random_state=random_state, n_jobs=n_jobs
+                )
+            elif model_type == "xgb":
+                # Determine objective based on class count
+                xgb_obj = "binary:logistic"
+                if y is not None:
+                    num_classes = len(np.unique(y))
+                    if num_classes > 2:
+                        xgb_obj = "multi:softprob"
+                
+                return xgb.XGBClassifier(
+                    n_estimators=params['xgb_n_estimators'],
+                    max_depth=params['xgb_max_depth'],
+                    learning_rate=params['xgb_lr'],
+                    objective=xgb_obj,
+                    random_state=random_state, n_jobs=n_jobs
+                )
+            elif model_type == "svm":
+                return SVC(
+                    C=params['svm_C'],
+                    kernel="rbf",
+                    probability=True,
+                    max_iter=2000
+                )
+        raise ValueError(f"Invalid model_type '{model_type}' or task '{self.task}'")
+
+    def _initialize_pipeline(self, params, y=None):
+        """
+        Constructs the pipeline (Preprocessing + Feature Eng + Model) based on parameters.
+        Centralizes logic to avoid duplication between optimization and final training.
+        """
+        # 1. Preprocessor Configuration
+        use_scaler = params.get('use_scaler', True)
+        use_pca = params.get('use_pca', False)
+        model_type = params.get('model_type')
+        
+        # Enforce scaling for SVMs or PCA to ensure convergence/performance
+        if (use_pca or model_type == 'svm') and not use_scaler:
+            use_scaler = True
+
+        preprocessor = AutoPreProcessor(
+            num_strategy=params.get('num_strategy', 'median'),
+            cat_strategy='constant',
+            use_scaler=use_scaler,
+            use_poly=params.get('use_poly', False),
+            poly_degree=params.get('poly_degree', 2)
+        )
+
+        # 2. Feature Engineering Configuration
+        feature_eng = AutoFeatureEngine(
+            use_log=params.get('use_log', False),
+            use_pca=use_pca,
+            pca_components=params.get('pca_components', 0.95)
+        )
+
+        # 3. Model Configuration
+        model = self._create_model_instance(model_type, params, y)
+        
+        return Pipeline([
+            ('preprocessor', preprocessor),
+            ('feature_eng', feature_eng),
+            ('model', model)
+        ])
 
     def _create_objective(self, X, y):
-        
         def objective(trial):
-            # PREPROCESSOR TUNING
-            num_strategy = trial.suggest_categorical("num_strategy", ["mean", "median"])
-            use_scaler = trial.suggest_categorical("use_scaler", [True, False])
-            
-            # FEATURE ENGINEERING TUNING 
-            use_log = trial.suggest_categorical("use_log", [True, False])
+            # Define Search Space
             use_poly = trial.suggest_categorical("use_poly", [True, False])
-            degree = trial.suggest_int("poly_degree", 1, 2) if use_poly else 2
+            poly_degree = trial.suggest_int("poly_degree", 1, 2) if use_poly else 2
             
             use_pca = trial.suggest_categorical("use_pca", [True, False])
-
             pca_comps = trial.suggest_float("pca_components", 0.80, 0.95) if use_pca else 0.95
-
-            # MODEL TUNING
+            
             model_type = trial.suggest_categorical("model_type", ["rf", "xgb", "svm"])
             
-            if (use_pca or model_type == 'svm') and not use_scaler:
-                # We can't change the trial params once suggested, 
-                # but we can force the preprocessor to use a scaler anyway!
-                actual_use_scaler = True 
-            else:
-                actual_use_scaler = use_scaler
-                
-            preprocessor = AutoPreProcessor(
-                num_strategy=num_strategy, 
-                cat_strategy='constant',
-                use_scaler=actual_use_scaler,
-                use_poly=use_poly,     
-                poly_degree=degree
-            )
-            
-            
-            feature_eng = AutoFeatureEngine(
-                use_log=use_log, 
-                use_pca=use_pca, 
-                pca_components=pca_comps
-            )
+            params = {
+                'num_strategy': trial.suggest_categorical("num_strategy", ["mean", "median"]),
+                'use_scaler': trial.suggest_categorical("use_scaler", [True, False]),
+                'use_log': trial.suggest_categorical("use_log", [True, False]),
+                'use_poly': use_poly,
+                'poly_degree': poly_degree,
+                'use_pca': use_pca,
+                'pca_components': pca_comps,
+                'model_type': model_type
+            }
 
+            # Model Specific Hyperparameters
+            if model_type == "rf":
+                params['rf_n_estimators'] = trial.suggest_int("rf_n_estimators", 50, 300)
+                params['rf_max_depth'] = trial.suggest_int("rf_max_depth", 3, 20)
+            elif model_type == "xgb":
+                params['xgb_n_estimators'] = trial.suggest_int("xgb_n_estimators", 50, 500)
+                params['xgb_max_depth'] = trial.suggest_int("xgb_max_depth", 3, 10)
+                params['xgb_lr'] = trial.suggest_float("xgb_lr", 0.01, 0.3, log=True)
+            elif model_type == "svm":
+                params['svm_C'] = trial.suggest_float("svm_C", 0.1, 10.0, log=True)
 
-            
-            if self.task == 'regression':
-                if model_type == "rf":
-                    model = RandomForestRegressor(
-                        n_estimators=trial.suggest_int("rf_n_estimators", 50, 300),
-                        max_depth=trial.suggest_int("rf_max_depth", 3, 20),
-                        random_state=42, n_jobs=-1 
-                    )
-                elif model_type == "xgb":
-                    model = xgb.XGBRegressor(
-                        n_estimators=trial.suggest_int("xgb_n_estimators", 50, 500),
-                        max_depth=trial.suggest_int("xgb_max_depth", 3, 10),
-                        learning_rate=trial.suggest_float("xgb_lr", 0.01, 0.3, log=True),
-                        objective="reg:squarederror", random_state=42, n_jobs=-1
-                    )
-                elif model_type == "svm":
-                    model = SVR(
-                        C=trial.suggest_float("svm_C", 0.1, 10.0, log=True),
-                        kernel="rbf",
-                        max_iter=2000
-                    )
-
-            elif self.task == 'classification':
-                if model_type == "rf":
-                    model = RandomForestClassifier(
-                        n_estimators=trial.suggest_int("rf_n_estimators", 50, 300),
-                        max_depth=trial.suggest_int("rf_max_depth", 3, 20),
-                        random_state=42, n_jobs=-1 
-                    )
-                elif model_type == "xgb":
-                    # XGBoost needs to know if it's 2 classes or 3+ classes
-                    num_classes = len(np.unique(y))
-                    xgb_obj = "binary:logistic" if num_classes == 2 else "multi:softprob"
-                    
-                    model = xgb.XGBClassifier(
-                        n_estimators=trial.suggest_int("xgb_n_estimators", 50, 500),
-                        max_depth=trial.suggest_int("xgb_max_depth", 3, 10),
-                        learning_rate=trial.suggest_float("xgb_lr", 0.01, 0.3, log=True),
-                        objective=xgb_obj, random_state=42, n_jobs=-1
-                    )
-                elif model_type == "svm":
-                    model = SVC(
-                        C=trial.suggest_float("svm_C", 0.1, 10.0, log=True),
-                        kernel="rbf", probability=True, max_iter=2000
-                    )
-            # EVALUATION
-            final_pipeline = Pipeline([
-                ('preprocessor', preprocessor),
-                ('feature_eng', feature_eng),
-                ('model', model)
-            ])
-
-            scores = cross_val_score(final_pipeline, X, y, cv=3, scoring=self.scoring)
+            # Build and Evaluate
+            pipeline = self._initialize_pipeline(params, y)
+            scores = cross_val_score(pipeline, X, y, cv=3, scoring=self.scoring)
             return scores.mean()
 
         return objective
 
-    def fit(self, X, y, progress_callback=None, shap_enabled=False):
+    def fit(self, X, y, progress_callback=None):
+        if not isinstance(X, pd.DataFrame):
+            raise ValueError("Input X must be a pandas DataFrame.")
 
-        self.target_name = y.name
-        self.shap_enabled = shap_enabled
+        self.target_name = getattr(y, 'name', 'target')
         
         # AUTO-SELECT TASK
         if self.task == 'auto':
@@ -178,57 +216,9 @@ class AutoModelSelector:
         print(self.study.best_params)
         print("="*30 + "\n")
 
-        self._build_best_pipeline(X, y)
-
-    def _build_best_pipeline(self, X, y):
-        p = self.study.best_params
-        
-        use_scaler = p.get('use_scaler', True)
-        model_type = p['model_type']
-        use_pca = p.get('use_pca', False)
-        
-        ## This may be a superfluous check
-        if (use_pca or model_type == 'svm') and not use_scaler:
-            actual_use_scaler = True
-        else:
-            actual_use_scaler = use_scaler
-        
-        preprocessor = AutoPreProcessor(
-            num_strategy=p.get('num_strategy', 'median'),
-            use_scaler=actual_use_scaler,           
-            use_poly=p.get('use_poly', False),     
-            poly_degree=p.get('poly_degree', 2)    
-        ) 
-        
-        feature_eng = AutoFeatureEngine(
-            use_log=p.get('use_log', False),        
-            use_pca=use_pca,
-            pca_components=p.get('pca_components', 0.95)
-        )
-
-        if self.task == 'regression':
-            if model_type == "rf":
-                model = RandomForestRegressor(n_estimators=p['rf_n_estimators'], max_depth=p['rf_max_depth'], random_state=42)
-            elif model_type == "xgb":
-                model = xgb.XGBRegressor(n_estimators=p['xgb_n_estimators'], max_depth=p['xgb_max_depth'], learning_rate=p['xgb_lr'], objective="reg:squarederror", random_state=42)
-            elif model_type == "svm":
-                model = SVR(C=p['svm_C'], kernel="rbf", max_iter=2000)
-                
-        elif self.task == 'classification':
-            if model_type == "rf":
-                model = RandomForestClassifier(n_estimators=p['rf_n_estimators'], max_depth=p['rf_max_depth'], random_state=42)
-            elif model_type == "xgb":
-                num_classes = len(np.unique(y))
-                xgb_obj = "binary:logistic" if num_classes == 2 else "multi:softprob"
-                model = xgb.XGBClassifier(n_estimators=p['xgb_n_estimators'], max_depth=p['xgb_max_depth'], learning_rate=p['xgb_lr'], objective=xgb_obj, random_state=42)
-            elif model_type == "svm":
-                model = SVC(C=p['svm_C'], kernel="rbf", probability=True, max_iter=2000) 
-
-        self.best_pipeline = Pipeline([
-            ('preprocessor', preprocessor),
-            ('feature_eng', feature_eng),
-            ('model', model)
-        ])
+        # Finalize Model
+        print("Retraining best model on full dataset...")
+        self.best_pipeline = self._initialize_pipeline(self.study.best_params, y)
         
         self.best_pipeline.fit(X, y)
         print("Final Pipeline Retrained and Ready.")
@@ -245,46 +235,45 @@ class AutoModelSelector:
     def explain(self, X, y, output_path):
         """
         Generates a SHAP summary plot for the best model.
+        Uses KernelExplainer on the full pipeline to ensure feature importance 
+        maps back to the original input features.
         """
         if self.best_pipeline is None:
             print("Model not fitted yet.")
             return
 
-        # Subsample background data for speed
-        # KernelExplainer is very slow, so we use a smaller sample of ROWS
+        # Optimization: Subsample background data to prevent timeouts
+        # KernelExplainer is computationally expensive.
         limit = 50
-        if X.shape[0] > limit:
-            X_bg = X.sample(limit, random_state=42)
-        else:
-            X_bg = X
+        X_bg = X.sample(limit, random_state=42) if X.shape[0] > limit else X
 
-        # We explain the ORIGINAL features by treating the whole pipeline as a black box.
-        # This ensures we get importance for the columns in X, not the transformed ones.
-        print("Explaining pipeline (using KernelExplainer on original features)...")
+        print("Calculating SHAP values (KernelExplainer)...")
         
         def predict_wrapper(data):
-            # SHAP passes numpy arrays, pipeline expects DataFrame with column names
+            # SHAP passes numpy arrays; pipeline expects DataFrame with correct dtypes
             if isinstance(data, np.ndarray):
                 data = pd.DataFrame(data, columns=X.columns)
-                
-                # Restore dtypes (SHAP converts to object/float in numpy)
                 for col in X.columns:
+                    # Attempt to restore numeric types if they were coerced to object
                     if pd.api.types.is_numeric_dtype(X[col]):
                         data[col] = pd.to_numeric(data[col], errors='coerce')
             
             return self.best_pipeline.predict(data)
 
+        # nsamples=100 provides a good balance between speed and approximation accuracy
         explainer = shap.KernelExplainer(predict_wrapper, X_bg)
         shap_values = explainer.shap_values(X_bg, nsamples=100)
         
-        features_for_plot = X_bg
-        feature_names = X.columns
-
-        # 5. Plot
+        # Plotting
         plt.figure(figsize=(10, 6))
-        # Handle binary/multiclass output (shap_values might be a list)
-        vals = shap_values[1] if isinstance(shap_values, list) and len(shap_values) > 1 else shap_values
         
-        shap.summary_plot(vals, features_for_plot, feature_names=feature_names, show=False)
+        # Handle binary/multiclass output (shap_values might be a list)
+        vals = shap_values
+        if isinstance(shap_values, list):
+            # For binary classification, shap_values is a list of [class0, class1]
+            # We usually plot the positive class (index 1)
+            vals = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+        
+        shap.summary_plot(vals, X_bg, feature_names=X.columns, show=False)
         plt.savefig(output_path, bbox_inches='tight')
         plt.close()

@@ -11,9 +11,6 @@ import io
 from datetime import datetime
 import shutil
 current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
 from model_selector import AutoModelSelector
 
 app = FastAPI(title="AutoML Master API", description="Drag, Drop, and Train ML Models")
@@ -260,7 +257,7 @@ async def predict(
     
     if id_col:
         # Use the dynamic target_col_name here
-        output_df = pd.DataFrame({id_col: df[id_col], target_col_name: predictions})
+        output_df = pd.DataFrame({id_col: df[id_col].values, target_col_name: predictions})
     else:
         # Use the dynamic target_col_name here too
         output_df = pd.DataFrame({
