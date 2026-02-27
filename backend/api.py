@@ -57,7 +57,7 @@ class PredictionResponse(BaseModel):
     predictions: List[str | int | float] # Can handle text classes or numerical regression
 
 # BACKGROUND WORKER
-def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str):
+def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str, shap_enabled: bool):
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
     try:
         # Stop if job was deleted
@@ -87,6 +87,14 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         model_path = f"api_models/{job_id}_model.pkl"
         joblib.dump(automl, model_path)
         
+        if shap_enabled:
+            job_database[job_id] = "Calculating SHAP values..."
+            shap_path = f"api_models/{job_id}_shap.png"
+            try:
+                automl.explain(X, y, shap_path)
+            except Exception as e:
+                print(f"SHAP calculation failed: {e}")
+
         os.remove(file_path)
         
         # Stop if job was deleted
@@ -111,7 +119,8 @@ async def start_training(
     file: UploadFile = File(...),
     target: str = Form(...),
     trials: int = Form(20),
-    task: str = Form("auto")
+    task: str = Form("auto"),
+    shap: bool = Form(False)
 ):
     # Generate the unique ID
     job_id = str(uuid.uuid4())[:8]
@@ -126,7 +135,7 @@ async def start_training(
     job_database[job_id] = "PENDING - Waiting in queue"
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
     meta_database[job_id] = {"filename": file.filename, "target": target}
-    background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task)    
+    background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task, shap)    
     return TrainingTicketResponse(
         message="Ticket generated! Training started in background.", 
         job_id=job_id
@@ -162,6 +171,13 @@ def download_model(job_id: str):
     # Using HTTPException is cleaner than returning a fake error dict
     raise HTTPException(status_code=404, detail="Model not found or still training.")
 
+@app.get("/shap/{job_id}")
+def get_shap_plot(job_id: str):
+    plot_path = f"api_models/{job_id}_shap.png"
+    if os.path.exists(plot_path):
+        return FileResponse(path=plot_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="SHAP plot not found.")
+
 @app.delete("/job/{job_id}")
 def delete_job(job_id: str):
     # Remove from databases
@@ -174,6 +190,10 @@ def delete_job(job_id: str):
     model_path = f"api_models/{job_id}_model.pkl"
     if os.path.exists(model_path):
         os.remove(model_path)
+    
+    shap_path = f"api_models/{job_id}_shap.png"
+    if os.path.exists(shap_path):
+        os.remove(shap_path)
         
     return {"message": "Job deleted"}
 

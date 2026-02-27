@@ -7,6 +7,10 @@ from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
 import pandas as pd
+import shap
+import matplotlib
+matplotlib.use('Agg') # Use non-interactive backend
+import matplotlib.pyplot as plt
 
 from preprocessing import AutoPreProcessor
 from feature_eng import AutoFeatureEngine
@@ -234,3 +238,52 @@ class AutoModelSelector:
             predictions = self.label_encoder.inverse_transform(predictions)
             
         return predictions
+
+    def explain(self, X, y, output_path):
+        """
+        Generates a SHAP summary plot for the best model.
+        """
+        if self.best_pipeline is None:
+            print("Model not fitted yet.")
+            return
+
+        # 1. Extract steps
+        preprocessor = self.best_pipeline.named_steps['preprocessor']
+        feature_eng = self.best_pipeline.named_steps['feature_eng']
+        model = self.best_pipeline.named_steps['model']
+
+        # 2. Transform X to the state it enters the model
+        X_trans = preprocessor.transform(X)
+        X_trans = feature_eng.transform(X_trans)
+
+        # 3. Get Feature Names
+        try:
+            feat_names = preprocessor.get_feature_names_out()
+            feat_names = feature_eng.get_feature_names_out(feat_names)
+        except:
+            feat_names = [f"Feature {i}" for i in range(X_trans.shape[1])]
+
+        # 4. Select Explainer
+        # Subsample for speed if dataset is large
+        if X_trans.shape[0] > 500:
+            X_bg = X_trans[:500]
+        else:
+            X_bg = X_trans
+
+        model_type = type(model).__name__
+        if "RandomForest" in model_type or "XGB" in model_type:
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(X_bg)
+        else:
+            # SVM or others use KernelExplainer (slower)
+            explainer = shap.KernelExplainer(model.predict, X_bg)
+            shap_values = explainer.shap_values(X_bg)
+
+        # 5. Plot
+        plt.figure(figsize=(10, 6))
+        # Handle binary/multiclass output (shap_values might be a list)
+        vals = shap_values[1] if isinstance(shap_values, list) and len(shap_values) > 1 else shap_values
+        
+        shap.summary_plot(vals, X_bg, feature_names=feat_names, show=False)
+        plt.savefig(output_path, bbox_inches='tight')
+        plt.close()

@@ -101,6 +101,12 @@ def render_dashboard():
                                 file_name=f"model_{job[:8]}.pkl",
                                 key=f"dl_{job}"
                             )
+                        
+                        # Check for SHAP plot
+                        shap_url = f"{API_URL}/shap/{job}"
+                        # We use a simple check by trying to load it or just providing the button
+                        if st.checkbox("Show Feature Importance (SHAP)", key=f"shap_btn_{job}"):
+                            st.image(shap_url, caption="Feature Importance", use_container_width=True)
         with col_del:
             if st.button("❌", key=f"del_{job}", help="Delete Model"):
                 st.session_state.jobs.remove(job)
@@ -127,11 +133,13 @@ with tab_train:
             with col2:
                 trials = st.number_input("Number of Trials:", min_value=1, max_value=100, value=20)
             
+            shap = st.checkbox("Enable SHAP Feature Importance (Slower)", value=False)
+            
         if st.button("Start Training", type="primary"):
             train_file.seek(0)
             response = requests.post(
                 f"{API_URL}/train",
-                data={"target": target_col, "trials": trials, "task": "auto"},
+                data={"target": target_col, "trials": trials, "task": "auto", "shap": shap},
                 files={"file": (train_file.name, train_file, "text/csv")}
             )
             
