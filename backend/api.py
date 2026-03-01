@@ -48,6 +48,7 @@ class JobStatusResponse(BaseModel):
     end_time: str | None = None
     filename: str | None = None
     target: str | None = None
+    shap_enabled: bool = False
 
 class PredictionResponse(BaseModel):
     job_id: str
@@ -156,7 +157,7 @@ async def start_training(
         
     job_database[job_id] = "PENDING - Waiting in queue"
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
-    meta_database[job_id] = {"filename": file.filename, "target": target}
+    meta_database[job_id] = {"filename": file.filename, "target": target, "shap": shap}
     background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task, shap)    
     return TrainingTicketResponse(
         message="Ticket generated! Training started in background.", 
@@ -182,7 +183,8 @@ def check_status(job_id: str):
         start_time=times.get("start"), 
         end_time=times.get("end"),
         filename=meta.get("filename"),
-        target=meta.get("target")
+        target=meta.get("target"),
+        shap_enabled=meta.get("shap", False)
     )
 
 @app.get("/download/{job_id}")

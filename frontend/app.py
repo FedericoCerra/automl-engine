@@ -60,6 +60,7 @@ def render_dashboard():
         end = status_res.get("end_time", "N/A")
         filename = status_res.get("filename", "Unknown File")
         target = status_res.get("target", "Unknown Target")
+        shap_enabled = status_res.get("shap_enabled", False)
         
         is_active = "COMPLETED" not in status_text and "FAILED" not in status_text
         
@@ -86,6 +87,9 @@ def render_dashboard():
                         # 2. Add the percentage text directly above the progress bar
                         st.write(f"**Progress:** {pct}%")
                         st.progress(pct)
+                    elif "Calculating SHAP values" in status_text:
+                        st.write("**Status:** Calculating SHAP values...")
+                        st.progress(90)
                     else:
                         st.write("**Progress:** Starting...")
                         st.progress(0)
@@ -116,10 +120,11 @@ def render_dashboard():
                             )
                         
                         # Check for SHAP plot
-                        shap_url = f"{API_URL}/shap/{job}"
-                        # We use a simple check by trying to load it or just providing the button
-                        if st.checkbox("Show Feature Importance (SHAP)", key=f"shap_btn_{job}"):
-                            st.image(shap_url, caption="Feature Importance", use_container_width=True)
+                        if shap_enabled:
+                            shap_url = f"{API_URL}/shap/{job}"
+                            # We use a simple check by trying to load it or just providing the button
+                            if st.checkbox("Show Feature Importance (SHAP)", key=f"shap_btn_{job}"):
+                                st.image(shap_url, caption="Feature Importance", use_container_width=True)
         with col_del:
             if st.button("❌", key=f"del_{job}", help="Delete Model"):
                 st.session_state.jobs.remove(job)
