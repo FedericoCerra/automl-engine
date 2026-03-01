@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 import pandas as pd
 import requests
 import re
@@ -32,6 +33,12 @@ if "jobs" not in st.session_state:
     else:
         st.session_state.jobs = []
 
+if "last_statuses" not in st.session_state:
+    st.session_state.last_statuses = {}
+
+if "engine_expanded" not in st.session_state:
+    st.session_state.engine_expanded = True
+
 st.title("AutoML Master Engine")
 st.markdown("Drag, drop, and train Machine Learning models instantly.")
 
@@ -62,6 +69,12 @@ def render_dashboard():
             continue
             
         status_text = status_res.get("status", "Unknown")
+        
+        # Check for completion transition to trigger visual effects
+        prev_status = st.session_state.last_statuses.get(job)
+        just_finished = (status_text == "COMPLETED" and prev_status != "COMPLETED" and prev_status is not None)
+        st.session_state.last_statuses[job] = status_text
+
         score = status_res.get("score")
         start = status_res.get("start_time", "N/A")
         end = status_res.get("end_time", "N/A")
@@ -71,11 +84,35 @@ def render_dashboard():
         
         is_active = "COMPLETED" not in status_text and "FAILED" not in status_text
         
+        # Check if this is a newly created job (within last 5 seconds)
+        is_new = False
+        if "new_job_id" in st.session_state and st.session_state.new_job_id == job:
+            if time.time() - st.session_state.get("new_job_time", 0) < 5:
+                is_new = True
+
+        # Determine Icon and Label
+        if is_new:
+            icon = "🟢"
+        elif status_text == "COMPLETED":
+            icon = "✅"
+        elif "FAILED" in status_text:
+            icon = "❌"
+        else:
+            icon = "⏳"
+            
+        # Static label prevents re-expansion on status update
+        label = f"{icon} Model: {job} ({filename})"
+        
+        # Expand if: New, Running, or Just Finished
+        should_expand = is_new or is_active or just_finished
+
         # Layout: Expander for details | Delete Button
         col_exp, col_del = st.columns([0.9, 0.1])
         
         with col_exp:
-            with st.expander(f"Model: {job} ({filename}) | Status: {status_text}", expanded=is_active):
+            with st.expander(label, expanded=should_expand):
+                
+                st.write(f"**Status:** {status_text}")
                 
                 # 1. Hide the "Finished" text if the engine is still running
                 if is_active or end in [None, "N/A"]:
@@ -146,7 +183,7 @@ with tab_train:
     if train_file is not None:
         df_train = pd.read_csv(train_file)
         
-        with st.expander("⚙️ Engine Settings", expanded=True):
+        with st.expander("⚙️ Engine Settings", expanded=st.session_state.engine_expanded):
             col1, col2 = st.columns(2)
             with col1:
                 last_col_index = len(df_train.columns) - 1
@@ -170,6 +207,13 @@ with tab_train:
                 # Save job list to user-specific file
                 with open(jobs_file, "w") as f:
                     json.dump(st.session_state.jobs, f)
+                
+                st.session_state.engine_expanded = False
+                st.session_state.new_job_id = job_id
+                st.session_state.new_job_time = time.time()
+                
+                st.toast("Training started! Scroll down to watch progress.", icon="🚀")
+                st.rerun()
             else:
                 st.error(f"Error: {response.text}")
 
