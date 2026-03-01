@@ -40,19 +40,26 @@ tab_train, tab_predict = st.tabs(["Train Model", "Predict"])
 # ==========================================
 # DASHBOARD FRAGMENT
 # ==========================================
-@st.fragment(run_every=2)
+@st.fragment(run_every=6)
 def render_dashboard():
     st.subheader("Your Training History")
     
-    if not st.session_state.jobs:
+    # 1. Fetch all jobs for this user in one single request
+    try:
+        jobs_data = requests.get(f"{API_URL}/jobs/{user_id}").json()
+        # Sync local session state with backend truth
+        st.session_state.jobs = list(jobs_data.keys())
+    except:
+        jobs_data = {}
+
+    if not jobs_data:
         st.info("No models training yet. Upload a CSV above to begin.")
         return
         
     for job in reversed(st.session_state.jobs):
-        try:
-            status_res = requests.get(f"{API_URL}/status/{job}").json()
-        except:
-            continue 
+        status_res = jobs_data.get(job)
+        if not status_res:
+            continue
             
         status_text = status_res.get("status", "Unknown")
         score = status_res.get("score")
@@ -157,7 +164,7 @@ with tab_train:
             train_file.seek(0)
             response = requests.post(
                 f"{API_URL}/train",
-                data={"target": target_col, "trials": trials, "task": "auto", "shap": shap},
+                data={"target": target_col, "trials": trials, "task": "auto", "shap": shap, "uid": user_id},
                 files={"file": (train_file.name, train_file, "text/csv")}
             )
             

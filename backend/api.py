@@ -143,7 +143,8 @@ async def start_training(
     target: str = Form(...),
     trials: int = Form(20),
     task: str = Form("auto"),
-    shap: bool = Form(False)
+    shap: bool = Form(False),
+    uid: str = Form(...)
 ):
     # Generate the unique ID
     job_id = str(uuid.uuid4())[:8]
@@ -157,12 +158,36 @@ async def start_training(
         
     job_database[job_id] = "PENDING - Waiting in queue"
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
-    meta_database[job_id] = {"filename": file.filename, "target": target, "shap": shap}
+    meta_database[job_id] = {"filename": file.filename, "target": target, "shap": shap, "uid": uid}
     background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task, shap)    
     return TrainingTicketResponse(
         message="Ticket generated! Training started in background.", 
         job_id=job_id
     )
+
+@app.get("/jobs/{uid}")
+def get_jobs_by_user(uid: str):
+    response = {}
+    # Iterate over meta_database to find jobs for this user
+    for job_id, meta in meta_database.items():
+        if meta.get("uid") == uid:
+            status = job_database.get(job_id, "Unknown")
+            results = results_database.get(job_id, {})
+            times = times_database.get(job_id, {})
+            
+            response[job_id] = {
+                "job_id": job_id, 
+                "status": status,
+                "score": results.get("score"),
+                "metric": results.get("metric"),
+                "feature_importance": results.get("feature_importance"),
+                "start_time": times.get("start"), 
+                "end_time": times.get("end"),
+                "filename": meta.get("filename"),
+                "target": meta.get("target"),
+                "shap_enabled": meta.get("shap", False)
+            }
+    return response
 
 @app.get("/status/{job_id}", response_model=JobStatusResponse)
 def check_status(job_id: str):
