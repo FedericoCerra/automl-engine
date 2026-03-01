@@ -117,14 +117,10 @@ def render_dashboard():
                             st.plotly_chart(fig, use_container_width=True)
                     
                     if status_text == "COMPLETED":
-                        dl_res = requests.get(f"{API_URL}/download/{job}")
-                        if dl_res.status_code == 200:
-                            st.download_button(
-                                label="Download Model (.pkl)",
-                                data=dl_res.content,
-                                file_name=f"model_{job[:8]}.pkl",
-                                key=f"dl_{job}"
-                            )
+                        st.link_button(
+                            label="Download Model (.pkl)",
+                            url=f"{API_URL}/download/{job}"
+                        )
                         
                         # Check for SHAP plot
                         if shap_enabled:
