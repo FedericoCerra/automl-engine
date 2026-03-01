@@ -32,6 +32,9 @@ if "jobs" not in st.session_state:
     else:
         st.session_state.jobs = []
 
+if "last_statuses" not in st.session_state:
+    st.session_state.last_statuses = {}
+
 st.title("AutoML Master Engine")
 st.markdown("Drag, drop, and train Machine Learning models instantly.")
 
@@ -62,6 +65,14 @@ def render_dashboard():
             continue
             
         status_text = status_res.get("status", "Unknown")
+        
+        # Check for completion transition to trigger visual effects
+        prev_status = st.session_state.last_statuses.get(job)
+        if status_text == "COMPLETED" and prev_status != "COMPLETED" and prev_status is not None:
+            st.balloons()
+            st.toast(f"Model {job[:8]} finished training!", icon="🎉")
+        st.session_state.last_statuses[job] = status_text
+
         score = status_res.get("score")
         start = status_res.get("start_time", "N/A")
         end = status_res.get("end_time", "N/A")
@@ -170,6 +181,8 @@ with tab_train:
                 # Save job list to user-specific file
                 with open(jobs_file, "w") as f:
                     json.dump(st.session_state.jobs, f)
+                st.toast("Training started! Scroll down to watch progress.", icon="🚀")
+                st.success(f"Ticket #{job_id} created. The engine is warming up!")
             else:
                 st.error(f"Error: {response.text}")
 
