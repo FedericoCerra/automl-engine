@@ -195,7 +195,6 @@ def load_example_data(name):
 with tab_train:
     st.header("1. Train a New Model")
     
-    train_file = st.file_uploader("Upload Training Data (CSV)", type=["csv"], accept_multiple_files=False, key="train_uploader")
     data_source = st.radio("Data Source", ["Upload CSV", "Example Datasets"], horizontal=True)
     
     train_file = None
