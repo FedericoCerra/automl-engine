@@ -115,7 +115,10 @@ def render_dashboard():
         with col_exp:
             with st.expander(label, expanded=should_expand):
                 
-                st.write(f"**Status:** {status_text}")
+                if "FAILED" in status_text:
+                    st.error(f"**Training Failed**\n\n{status_text.replace('FAILED:', '').strip()}", icon="🚨")
+                else:
+                    st.write(f"**Status:** {status_text}")
                 
                 # 1. Hide the "Finished" text if the engine is still running
                 if is_active or end in [None, "N/A"]:
@@ -222,17 +225,20 @@ with tab_train:
                     )
                 
                 # Filter metrics based on selected task
+                is_metric_disabled = False
                 if task_type == "classification":
                     metric_options = ["auto", "accuracy", "f1", "roc_auc", "precision", "recall"]
                 elif task_type == "regression":
                     metric_options = ["auto", "r2", "neg_mean_squared_error"]
                 else:
-                    metric_options = ["auto", "accuracy", "r2", "f1", "roc_auc", "precision", "recall", "neg_mean_squared_error"]
+                    metric_options = ["auto"]
+                    is_metric_disabled = True
 
                 with c_adv2:
                     scoring_metric = st.selectbox(
                         "Optimization Goal (Metric)", 
                         metric_options,
+                        disabled=is_metric_disabled,
                         help="The metric the model optimizes for during training."
                     )
             
