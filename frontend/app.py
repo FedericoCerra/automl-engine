@@ -117,72 +117,73 @@ def render_dashboard():
                 
                 if "FAILED" in status_text:
                     st.error(f"**Training Failed**\n\n{status_text.replace('FAILED:', '').strip()}", icon="🚨")
+                    st.caption(f"**ID:** `{job}` | **Started:** {start} | **Failed:** {end}")
                 else:
                     st.write(f"**Status:** {status_text}")
                 
-                # 1. Hide the "Finished" text if the engine is still running
-                if is_active or end in [None, "N/A"]:
-                    st.caption(f"**ID:** `{job}` | **Started:** {start}")
-                else:
-                    st.caption(f"**ID:** `{job}` | **Started:** {start} | **Finished:** {end}")
-                
-                with st.expander("Model & Data Details"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.write(f"**Target:** `{target}`")
-                        if task_type:
-                            st.write(f"**Task:** `{task_type.title()}`")
-                    with c2:
-                        if dataset_stats:
-                            st.write(f"**Rows:** {dataset_stats.get('rows')}")
-                            st.write(f"**Cols:** {dataset_stats.get('columns')}")
-                    
-                    if best_params:
-                        st.divider()
-                        st.write("**Best Hyperparameters:**")
-                        st.json(best_params, expanded=False)
-                
-                if is_active:
-                    match = re.search(r'\((\d+)%\)', status_text)
-                    if match:
-                        pct = int(match.group(1))
-                        # 2. Add the percentage text directly above the progress bar
-                        st.write(f"**Progress:** {pct}%")
-                        st.progress(pct)
-                    elif "Calculating SHAP values" in status_text:
-                        st.write("**Status:** Calculating SHAP values...")
-                        st.progress(90)
+                    # 1. Hide the "Finished" text if the engine is still running
+                    if is_active or end in [None, "N/A"]:
+                        st.caption(f"**ID:** `{job}` | **Started:** {start}")
                     else:
-                        st.write("**Progress:** Starting...")
-                        st.progress(0)
-                else:
-                    if score:
-                        st.write(f"**Final Score:** {score:.4f} ({status_res.get('metric')})")
+                        st.caption(f"**ID:** `{job}` | **Started:** {start} | **Finished:** {end}")
                     
-                    # Feature Importance Visualization
-                    feat_imp = status_res.get("feature_importance")
-                    if feat_imp:
-                        with st.expander("📊 Feature Importance", expanded=False):
-                            df_imp = pd.DataFrame(list(feat_imp.items()), columns=["Feature", "Importance"])
-                            df_imp = df_imp.sort_values(by="Importance", ascending=False).head(10)
-                            
-                            fig = px.bar(df_imp, x="Importance", y="Feature", orientation='h', 
-                                         title="Top 10 Important Features", color="Importance")
-                            fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                            st.plotly_chart(fig, use_container_width=True)
-                    
-                    if status_text == "COMPLETED":
-                        st.link_button(
-                            label="Download Model (.pkl)",
-                            url=f"{API_URL}/download/{job}"
-                        )
+                    with st.expander("Model & Data Details"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.write(f"**Target:** `{target}`")
+                            if task_type:
+                                st.write(f"**Task:** `{task_type.title()}`")
+                        with c2:
+                            if dataset_stats:
+                                st.write(f"**Rows:** {dataset_stats.get('rows')}")
+                                st.write(f"**Cols:** {dataset_stats.get('columns')}")
                         
-                        # Check for SHAP plot
-                        if shap_enabled:
-                            shap_url = f"{API_URL}/shap/{job}"
-                            # We use a simple check by trying to load it or just providing the button
-                            if st.checkbox("Show Feature Importance (SHAP)", key=f"shap_btn_{job}"):
-                                st.image(shap_url, caption="Feature Importance", use_container_width=True)
+                        if best_params:
+                            st.divider()
+                            st.write("**Best Hyperparameters:**")
+                            st.json(best_params, expanded=False)
+                    
+                    if is_active:
+                        match = re.search(r'\((\d+)%\)', status_text)
+                        if match:
+                            pct = int(match.group(1))
+                            # 2. Add the percentage text directly above the progress bar
+                            st.write(f"**Progress:** {pct}%")
+                            st.progress(pct)
+                        elif "Calculating SHAP values" in status_text:
+                            st.write("**Status:** Calculating SHAP values...")
+                            st.progress(90)
+                        else:
+                            st.write("**Progress:** Starting...")
+                            st.progress(0)
+                    else:
+                        if score:
+                            st.write(f"**Final Score:** {score:.4f} ({status_res.get('metric')})")
+                        
+                        # Feature Importance Visualization
+                        feat_imp = status_res.get("feature_importance")
+                        if feat_imp:
+                            with st.expander("📊 Feature Importance", expanded=False):
+                                df_imp = pd.DataFrame(list(feat_imp.items()), columns=["Feature", "Importance"])
+                                df_imp = df_imp.sort_values(by="Importance", ascending=False).head(10)
+                                
+                                fig = px.bar(df_imp, x="Importance", y="Feature", orientation='h', 
+                                             title="Top 10 Important Features", color="Importance")
+                                fig.update_layout(yaxis={'categoryorder':'total ascending'})
+                                st.plotly_chart(fig, use_container_width=True)
+                        
+                        if status_text == "COMPLETED":
+                            st.link_button(
+                                label="Download Model (.pkl)",
+                                url=f"{API_URL}/download/{job}"
+                            )
+                            
+                            # Check for SHAP plot
+                            if shap_enabled:
+                                shap_url = f"{API_URL}/shap/{job}"
+                                # We use a simple check by trying to load it or just providing the button
+                                if st.checkbox("Show Feature Importance (SHAP)", key=f"shap_btn_{job}"):
+                                    st.image(shap_url, caption="Feature Importance", use_container_width=True)
         with col_del:
             if st.button("❌", key=f"del_{job}", help="Delete Model"):
                 st.session_state.jobs.remove(job)
