@@ -182,10 +182,37 @@ def render_dashboard():
 # ==========================================
 # SECTION 1: TRAIN
 # ==========================================
+@st.cache_data
+def load_example_data(name):
+    if "Titanic" in name:
+        url = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
+        fname = "titanic.csv"
+    else:
+        url = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.csv"
+        fname = "housing.csv"
+    return pd.read_csv(url), fname
+
 with tab_train:
     st.header("1. Train a New Model")
     
     train_file = st.file_uploader("Upload Training Data (CSV)", type=["csv"], accept_multiple_files=False, key="train_uploader")
+    data_source = st.radio("Data Source", ["Upload CSV", "Example Datasets"], horizontal=True)
+    
+    train_file = None
+    
+    if data_source == "Upload CSV":
+        train_file = st.file_uploader("Upload Training Data (CSV)", type=["csv"], accept_multiple_files=False, key="train_uploader")
+    else:
+        example_ds = st.selectbox("Select Example Dataset", ["Titanic (Classification)", "House Prices (Regression)"])
+        try:
+            df_example, fname = load_example_data(example_ds)
+            train_file = io.BytesIO()
+            df_example.to_csv(train_file, index=False)
+            train_file.seek(0)
+            train_file.name = fname
+            st.info(f"Loaded {fname} ({len(df_example)} rows)")
+        except Exception as e:
+            st.error(f"Error loading example data: {e}")
     
     if train_file is not None:
         df_train = pd.read_csv(train_file)
