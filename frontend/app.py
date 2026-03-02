@@ -160,18 +160,6 @@ def render_dashboard():
                         if score:
                             st.write(f"**Final Score:** {score:.4f} ({status_res.get('metric')})")
                         
-                        # Feature Importance Visualization
-                        feat_imp = status_res.get("feature_importance")
-                        if feat_imp:
-                            with st.expander("📊 Feature Importance", expanded=False):
-                                df_imp = pd.DataFrame(list(feat_imp.items()), columns=["Feature", "Importance"])
-                                df_imp = df_imp.sort_values(by="Importance", ascending=False).head(10)
-                                
-                                fig = px.bar(df_imp, x="Importance", y="Feature", orientation='h', 
-                                             title="Top 10 Important Features", color="Importance")
-                                fig.update_layout(yaxis={'categoryorder':'total ascending'})
-                                st.plotly_chart(fig, use_container_width=True)
-                        
                         if status_text == "COMPLETED":
                             st.link_button(
                                 label="Download Model (.pkl)",
