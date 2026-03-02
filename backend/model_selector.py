@@ -156,9 +156,13 @@ class AutoModelSelector:
                 params['svm_C'] = trial.suggest_float("svm_C", 0.1, 10.0, log=True)
 
             # Build and Evaluate
-            pipeline = self._initialize_pipeline(params, y)
-            scores = cross_val_score(pipeline, X, y, cv=3, scoring=self.scoring)
-            return scores.mean()
+            try:
+                pipeline = self._initialize_pipeline(params, y)
+                scores = cross_val_score(pipeline, X, y, cv=3, scoring=self.scoring)
+                return scores.mean()
+            except Exception as e:
+                # Prune trial if model crashes (e.g. Classification on Regression data)
+                raise optuna.TrialPruned(f"Trial failed: {str(e)}")
 
         return objective
 
@@ -209,6 +213,11 @@ class AutoModelSelector:
             n_trials=self.n_trials,
             callbacks=[optuna_callback] 
             )
+        
+        # Check if we have at least one successful trial
+        if len([t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]) == 0:
+            raise ValueError("All training trials failed. The selected Task Type or Optimization Goal might be incompatible with your dataset.")
+            
         self.best_score = self.study.best_value 
         
         print("\n" + "="*30)

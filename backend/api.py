@@ -142,7 +142,11 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         times_database[job_id]["end"] = datetime.now().strftime("%H:%M:%S") # Log end time
         
     except Exception as e:
-        job_database[job_id] = f"FAILED: {str(e)}"
+        error_msg = str(e)
+        # Truncate very long error messages (e.g. huge array dumps from XGBoost)
+        if len(error_msg) > 500:
+            error_msg = error_msg[:500] + "... (Error truncated. Check configuration.)"
+        job_database[job_id] = f"FAILED: {error_msg}"
         times_database[job_id]["end"] = datetime.now().strftime("%H:%M:%S")
         
 # ENDPOINTS
