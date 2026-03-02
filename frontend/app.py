@@ -220,10 +220,19 @@ with tab_train:
                         ["auto", "classification", "regression"], 
                         help="Force the model to perform a specific task type."
                     )
+                
+                # Filter metrics based on selected task
+                if task_type == "classification":
+                    metric_options = ["auto", "accuracy", "f1", "roc_auc", "precision", "recall"]
+                elif task_type == "regression":
+                    metric_options = ["auto", "r2", "neg_mean_squared_error"]
+                else:
+                    metric_options = ["auto", "accuracy", "r2", "f1", "roc_auc", "precision", "recall", "neg_mean_squared_error"]
+
                 with c_adv2:
                     scoring_metric = st.selectbox(
                         "Optimization Goal (Metric)", 
-                        ["auto", "accuracy", "r2", "f1", "roc_auc", "precision", "recall", "neg_mean_squared_error"],
+                        metric_options,
                         help="The metric the model optimizes for during training."
                     )
             
