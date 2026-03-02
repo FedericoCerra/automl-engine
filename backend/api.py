@@ -52,6 +52,7 @@ class JobStatusResponse(BaseModel):
     best_params: dict | None = None
     dataset_stats: dict | None = None
     task_type: str | None = None
+    sample_data: dict | None = None
 
 class PredictionResponse(BaseModel):
     job_id: str
@@ -71,6 +72,11 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         # Capture dataset statistics
         rows, cols = df.shape
         dataset_stats = {"rows": rows, "columns": cols}
+        
+        # Capture sample data (first row) for user reference
+        sample_data = None
+        if not df.empty:
+            sample_data = df.head(1).replace({float('nan'): None}).to_dict(orient='records')[0]
         
         if target not in df.columns:
             job_database[job_id] = f"Error: Target '{target}' not found in CSV."
@@ -135,7 +141,8 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
             "feature_importance": feat_importance,
             "best_params": automl.study.best_params if automl.study else None,
             "dataset_stats": dataset_stats,
-            "task_type": automl.task
+            "task_type": automl.task,
+            "sample_data": sample_data
         }
         
         job_database[job_id] = "COMPLETED"
@@ -203,7 +210,8 @@ def get_jobs_by_user(uid: str):
                 "shap_enabled": meta.get("shap", False),
                 "best_params": results.get("best_params"),
                 "dataset_stats": results.get("dataset_stats"),
-                "task_type": results.get("task_type")
+                "task_type": results.get("task_type"),
+                "sample_data": results.get("sample_data")
             }
     return response
 
@@ -230,7 +238,8 @@ def check_status(job_id: str):
         shap_enabled=meta.get("shap", False),
         best_params=results.get("best_params"),
         dataset_stats=results.get("dataset_stats"),
-        task_type=results.get("task_type")
+        task_type=results.get("task_type"),
+        sample_data=results.get("sample_data")
     )
 
 @app.get("/download/{job_id}")

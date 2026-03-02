@@ -282,6 +282,19 @@ with tab_predict:
     else:
         uploaded_model = st.file_uploader("Drag & Drop your .pkl model here", type=["pkl"])
     
+    # Show Training Data Sample if available
+    if input_method == "Select from History" and predict_job_id:
+        try:
+            # We fetch the status to get the sample data
+            job_details = requests.get(f"{API_URL}/status/{predict_job_id}").json()
+            sample_data = job_details.get("sample_data")
+            if sample_data:
+                with st.expander("ℹ️ Training Data Example (Expected Format)", expanded=False):
+                    st.caption("Ensure your prediction data matches these columns:")
+                    st.dataframe(pd.DataFrame([sample_data]), hide_index=True)
+        except Exception:
+            pass
+    
     predict_file = st.file_uploader("Upload New Data for Prediction (CSV)", type=["csv"], accept_multiple_files=False, key="predict_uploader")
     
     if predict_file is not None:
