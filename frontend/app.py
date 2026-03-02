@@ -187,10 +187,18 @@ def load_example_data(name):
     if "Titanic" in name:
         url = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
         fname = "titanic.csv"
+        df = pd.read_csv(url)
+        # Move 'Survived' to the end so it's auto-selected as target
+        if 'Survived' in df.columns:
+            df['Survived'] = df.pop('Survived')
     else:
         url = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.csv"
         fname = "housing.csv"
-    return pd.read_csv(url), fname
+        df = pd.read_csv(url)
+        # Move 'median_house_value' to the end so it's auto-selected as target
+        if 'median_house_value' in df.columns:
+            df['median_house_value'] = df.pop('median_house_value')
+    return df, fname
 
 with tab_train:
     st.header("1. Train a New Model")
