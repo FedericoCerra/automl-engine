@@ -198,21 +198,41 @@ with tab_train:
     if train_file is not None:
         df_train = pd.read_csv(train_file)
         
-        with st.expander("⚙️ Engine Settings", expanded=st.session_state.engine_expanded):
-            col1, col2 = st.columns(2)
-            with col1:
-                last_col_index = len(df_train.columns) - 1
-                target_col = st.selectbox("Target Column to Predict:", df_train.columns, index=last_col_index)
-            with col2:
-                trials = st.number_input("Number of Trials:", min_value=1, max_value=100, value=20)
+        with st.expander("⚙️ Training Configuration", expanded=st.session_state.engine_expanded):
+            t1, t2 = st.tabs(["General Settings", "Advanced Options"])
             
-            shap = st.checkbox("Enable SHAP Feature Importance (Slower)", value=False)
+            with t1:
+                col1, col2 = st.columns(2)
+                with col1:
+                    last_col_index = len(df_train.columns) - 1
+                    target_col = st.selectbox("Target Column to Predict:", df_train.columns, index=last_col_index)
+                with col2:
+                    trials = st.number_input("Number of Trials:", min_value=1, max_value=100, value=20)
+                
+                shap = st.checkbox("Enable SHAP Feature Importance (Slower)", value=False)
+            
+            with t2:
+                st.caption("Override automatic detection settings.")
+                c_adv1, c_adv2 = st.columns(2)
+                with c_adv1:
+                    task_type = st.selectbox(
+                        "Task Type", 
+                        ["auto", "classification", "regression"], 
+                        help="Force the model to perform a specific task type."
+                    )
+                with c_adv2:
+                    scoring_metric = st.selectbox(
+                        "Optimization Goal (Metric)", 
+                        ["auto", "accuracy", "r2", "f1", "roc_auc", "precision", "recall", "neg_mean_squared_error"],
+                        help="The metric the model optimizes for during training."
+                    )
             
         if st.button("Start Training", type="primary"):
             train_file.seek(0)
             response = requests.post(
                 f"{API_URL}/train",
                 data={"target": target_col, "trials": trials, "task": "auto", "shap": shap, "uid": user_id},
+                data={"target": target_col, "trials": trials, "task": task_type, "scoring": scoring_metric, "shap": shap, "uid": user_id},
                 files={"file": (train_file.name, train_file, "text/csv")}
             )
             
