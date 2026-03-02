@@ -59,7 +59,7 @@ class PredictionResponse(BaseModel):
     predictions: List[str | int | float] # Can handle text classes or numerical regression
 
 # BACKGROUND WORKER
-def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str, shap_enabled: bool):
+def run_training_task(job_id: str, file_path: str, target: str, trials: int, task: str, scoring: str, shap_enabled: bool):
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
     try:
         # Stop if job was deleted
@@ -80,7 +80,7 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         y = df[target]
         
         job_database[job_id] = "Training..."        
-        automl = AutoModelSelector(n_trials=trials, task=task, scoring='auto')
+        automl = AutoModelSelector(n_trials=trials, task=task, scoring=scoring)
         
         def update_api_status(current_trial, total_trials):
             # Stop if job was deleted
@@ -153,6 +153,7 @@ async def start_training(
     target: str = Form(...),
     trials: int = Form(20),
     task: str = Form("auto"),
+    scoring: str = Form("auto"),
     shap: bool = Form(False),
     uid: str = Form(...)
 ):
@@ -169,7 +170,7 @@ async def start_training(
     job_database[job_id] = "PENDING - Waiting in queue"
     times_database[job_id] = {"start": datetime.now().strftime("%H:%M:%S"), "end": None}
     meta_database[job_id] = {"filename": file.filename, "target": target, "shap": shap, "uid": uid}
-    background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task, shap)    
+    background_tasks.add_task(run_training_task, job_id, file_path, target, trials, task, scoring, shap)    
     return TrainingTicketResponse(
         message="Ticket generated! Training started in background.", 
         job_id=job_id

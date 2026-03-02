@@ -231,7 +231,6 @@ with tab_train:
             train_file.seek(0)
             response = requests.post(
                 f"{API_URL}/train",
-                data={"target": target_col, "trials": trials, "task": "auto", "shap": shap, "uid": user_id},
                 data={"target": target_col, "trials": trials, "task": task_type, "scoring": scoring_metric, "shap": shap, "uid": user_id},
                 files={"file": (train_file.name, train_file, "text/csv")}
             )
