@@ -81,6 +81,9 @@ def render_dashboard():
         filename = status_res.get("filename", "Unknown File")
         target = status_res.get("target", "Unknown Target")
         shap_enabled = status_res.get("shap_enabled", False)
+        best_params = status_res.get("best_params")
+        dataset_stats = status_res.get("dataset_stats")
+        task_type = status_res.get("task_type")
         
         is_active = "COMPLETED" not in status_text and "FAILED" not in status_text
         
@@ -120,9 +123,21 @@ def render_dashboard():
                 else:
                     st.caption(f"**ID:** `{job}` | **Started:** {start} | **Finished:** {end}")
                 
-                with st.expander("Training Data Details"):
-                    st.write(f"**File Name:** `{filename}`")
-                    st.write(f"**Target Column:** `{target}`")
+                with st.expander("Model & Data Details"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.write(f"**Target:** `{target}`")
+                        if task_type:
+                            st.write(f"**Task:** `{task_type.title()}`")
+                    with c2:
+                        if dataset_stats:
+                            st.write(f"**Rows:** {dataset_stats.get('rows')}")
+                            st.write(f"**Cols:** {dataset_stats.get('columns')}")
+                    
+                    if best_params:
+                        st.divider()
+                        st.write("**Best Hyperparameters:**")
+                        st.json(best_params, expanded=False)
                 
                 if is_active:
                     match = re.search(r'\((\d+)%\)', status_text)

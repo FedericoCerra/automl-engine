@@ -2,7 +2,7 @@ import os
 import uuid
 import pandas as pd
 import joblib
-from typing import List
+from typing import List, Dict, Any
 from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -49,6 +49,9 @@ class JobStatusResponse(BaseModel):
     filename: str | None = None
     target: str | None = None
     shap_enabled: bool = False
+    best_params: dict | None = None
+    dataset_stats: dict | None = None
+    task_type: str | None = None
 
 class PredictionResponse(BaseModel):
     job_id: str
@@ -64,6 +67,10 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
 
         job_database[job_id] = "Loading data..."
         df = pd.read_csv(file_path)
+        
+        # Capture dataset statistics
+        rows, cols = df.shape
+        dataset_stats = {"rows": rows, "columns": cols}
         
         if target not in df.columns:
             job_database[job_id] = f"Error: Target '{target}' not found in CSV."
@@ -125,7 +132,10 @@ def run_training_task(job_id: str, file_path: str, target: str, trials: int, tas
         results_database[job_id] = {
             "score": abs(automl.best_score), # abs() removes the negative sign from MSE
             "metric": automl.scoring,
-            "feature_importance": feat_importance
+            "feature_importance": feat_importance,
+            "best_params": automl.study.best_params if automl.study else None,
+            "dataset_stats": dataset_stats,
+            "task_type": automl.task
         }
         
         job_database[job_id] = "COMPLETED"
@@ -185,7 +195,10 @@ def get_jobs_by_user(uid: str):
                 "end_time": times.get("end"),
                 "filename": meta.get("filename"),
                 "target": meta.get("target"),
-                "shap_enabled": meta.get("shap", False)
+                "shap_enabled": meta.get("shap", False),
+                "best_params": results.get("best_params"),
+                "dataset_stats": results.get("dataset_stats"),
+                "task_type": results.get("task_type")
             }
     return response
 
@@ -209,7 +222,10 @@ def check_status(job_id: str):
         end_time=times.get("end"),
         filename=meta.get("filename"),
         target=meta.get("target"),
-        shap_enabled=meta.get("shap", False)
+        shap_enabled=meta.get("shap", False),
+        best_params=results.get("best_params"),
+        dataset_stats=results.get("dataset_stats"),
+        task_type=results.get("task_type")
     )
 
 @app.get("/download/{job_id}")
