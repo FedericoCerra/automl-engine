@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -5,6 +6,8 @@ from sklearn.preprocessing import PolynomialFeatures, FunctionTransformer
 from sklearn.decomposition import PCA
 from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
+
+logger = logging.getLogger("automl-api")
 
 class AutoFeatureEngine(BaseEstimator, TransformerMixin):
     def __init__(self, use_log=True, use_pca=False, pca_components=0.95):
@@ -24,10 +27,10 @@ class AutoFeatureEngine(BaseEstimator, TransformerMixin):
         steps = []
         
         if self.use_log:
-            if np.nanmin(X) >= 0:
+            if X.size > 0 and np.nanmin(X) >= 0:
                 steps.append(('log', FunctionTransformer(np.log1p, validate=True)))
             else:
-                print("Skipping Log Transform: Data contains negative values.")
+                logger.info("Skipping Log Transform: Data contains negative values or is empty.")
 
         if self.use_pca:
             steps.append(('pca', PCA(n_components=self.pca_components)))
